@@ -183,19 +183,20 @@ a,
 /* ---- layout helpers ---- */
 @utility app-shell {
   /*
-   * The iOS standalone bottom-gap bug, finally pinned down. With
-   * black-translucent + viewport-fit=cover, iOS resolves the viewport SHORT by
-   * the TOP safe-area inset: 100vh / 100dvh / 100% / a bare fixed inset:0 all
-   * report a screen that's missing ~status-bar height, and that shortfall shows
-   * up as dead space at the BOTTOM. Earlier passes kept swapping the base unit
-   * (vh → dvh → inset:0 → JS innerHeight) but none of them ADDED the missing
-   * inset back — so the gap never moved. The fix is to extend the fixed shell
-   * down by env(safe-area-inset-top) so it reaches the true screen bottom. Off
-   * iOS the inset is 0, so this is a plain 100dvh — no regression anywhere.
+   * iOS standalone (home-screen) PWAs mis-resolve EVERY CSS viewport height and
+   * window.innerHeight: measured on-device, 100dvh reports ~753pt against a real
+   * 874pt screen, so the fixed shell falls short and its overflow:hidden clips
+   * the bottom of the tab bar (labels vanish) while dead space opens below.
+   * Swapping units (vh → dvh → inset:0 → innerHeight → +inset-top) never fixed
+   * it because they all read the same buggy short viewport. The one value that
+   * equals the true screen in a full-bleed standalone PWA is the PHYSICAL
+   * screen dimension — window.screen.* — which <AppHeight> (components/shell)
+   * publishes as --app-height (standalone only; a browser tab keeps
+   * innerHeight). 100vh is just the pre-hydration / non-standalone fallback.
    */
   position: fixed;
   inset: 0;
-  height: calc(100dvh + env(safe-area-inset-top));
+  height: var(--app-height, 100vh);
   min-height: 0;
   overflow: hidden;
 }

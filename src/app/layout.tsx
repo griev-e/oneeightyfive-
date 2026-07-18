@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
+import { AppHeight } from "@/components/shell/app-height";
 import "./globals.css";
 
 /**
@@ -53,7 +54,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={GeistSans.variable}>
-      <body>{children}</body>
+      <body>
+        <AppHeight />
+        {children}
+      </body>
     </html>
   );
 }
