@@ -48,11 +48,24 @@ export const viewport: Viewport = {
   themeColor: "#0A0A0B",
 };
 
+/**
+ * iOS standalone PWAs mis-resolve every CSS viewport height (100vh/100dvh and a
+ * bare fixed inset:0 all land shorter than the screen, leaving a URL-bar-sized
+ * gap at the bottom). window.innerHeight is the one measurement iOS gets right,
+ * so we publish it as --app-height before first paint and keep it current on
+ * resize/orientation. Runs inline in <head> so the shell is sized before the
+ * tab bar ever paints — no post-hydration jump.
+ */
+const APP_HEIGHT_SCRIPT = `(function(){var r=document.documentElement;function s(){r.style.setProperty('--app-height',window.innerHeight+'px')}s();addEventListener('resize',s);addEventListener('orientationchange',function(){s();setTimeout(s,300)})})()`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={GeistSans.variable}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APP_HEIGHT_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );
