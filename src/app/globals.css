@@ -183,15 +183,18 @@ a,
 /* ---- layout helpers ---- */
 @utility app-shell {
   /*
-   * Fixed + inset:0 sizes the shell to the real fixed viewport on every
-   * platform. Do NOT set an explicit height here: on a fixed box, an explicit
-   * height wins over bottom:0, and iOS standalone (home-screen) PWAs resolve
-   * 100dvh/100vh SHORTER than the actual screen — that mismatch leaves dead
-   * space at the bottom (where the Safari URL bar would sit). Letting inset:0
-   * stretch top-to-bottom avoids the buggy unit entirely.
+   * iOS standalone (home-screen) PWAs are unreliable about CSS viewport height:
+   * 100vh/100dvh AND a bare fixed inset:0 all resolve SHORTER than the real
+   * screen, leaving dead space at the bottom (where Safari's URL bar sits in
+   * browser mode). The only value iOS gets right is the JS-measured
+   * window.innerHeight, published as --app-height by the inline script in the
+   * root layout (kept current on resize/orientation). We pin the shell to that;
+   * on a fixed box the explicit height wins over bottom:0 and fills top→bottom.
+   * 100dvh is only the pre-hydration / no-JS fallback.
    */
   position: fixed;
   inset: 0;
+  height: var(--app-height, 100dvh);
   min-height: 0;
   overflow: hidden;
 }
