@@ -22,10 +22,19 @@ pnpm build && pnpm start
 node scripts/generate-assets.mjs   # regenerate icons + iOS splash screens
 ```
 
+`.env.local` (all three also required on Vercel):
+
+```
+PIN_LOCK=….............# the 4-digit unlock PIN
+SUPABASE_URL=https://aqykznlpspuguvvoacpi.supabase.co
+SUPABASE_SECRET_KEY=…  # Supabase dashboard → Settings → API keys (secret)
+```
+
 `/design` is a hidden gallery of tokens, type, and motion primitives.
 
 ## Status
 
-Milestone 1 (app shell + design system on live mock data) is complete and
-deployed for on-device review. The full design system, conventions, data
-model, and milestone plan live in [CLAUDE.md](./CLAUDE.md).
+M1 (shell + design system) and M2 (PIN lock, Supabase, live weight tracking)
+are done. Nutrition, workouts, and streaks still run on mock data until
+M3–M5. Conventions, data model, and the milestone plan live in
+[CLAUDE.md](./CLAUDE.md).

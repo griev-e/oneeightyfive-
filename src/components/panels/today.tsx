@@ -9,6 +9,8 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { PressableCard } from "@/components/ui/card";
 import { Sparkline } from "@/components/charts/sparkline";
 import { useMock } from "@/lib/mock";
+import { useWeighIns } from "@/hooks/use-weight";
+import { useSettings } from "@/hooks/use-settings";
 import { computePace, rollingAverage } from "@/lib/stats";
 import { formatFullDate } from "@/lib/dates";
 import { formatInt, formatPace, formatWeight } from "@/lib/format";
@@ -25,14 +27,16 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
   const surplusHit = remaining <= 0;
   const streak = surplusHit ? mock.streakBase + 1 : mock.streakBase;
 
-  const latest = mock.weighIns[mock.weighIns.length - 1];
+  const { data: weighIns = [] } = useWeighIns();
+  const settings = useSettings();
+  const latest = weighIns[weighIns.length - 1];
   const pace = useMemo(
-    () => computePace(mock.weighIns, mock.goalRate),
-    [mock.weighIns, mock.goalRate],
+    () => computePace(weighIns, settings.goalRateLbsPerWeek),
+    [weighIns, settings.goalRateLbsPerWeek],
   );
   const spark = useMemo(
-    () => rollingAverage(mock.weighIns).slice(-21),
-    [mock.weighIns],
+    () => rollingAverage(weighIns).slice(-21),
+    [weighIns],
   );
 
   const setsToday = mock.exercises.reduce((s, e) => s + e.today.length, 0);

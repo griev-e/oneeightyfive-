@@ -1,12 +1,9 @@
 "use client";
 
 /**
- * M1 only: a single coherent mock-state object behind the same shape the
- * real data layer will expose. Every number on every panel derives from
- * here, and panels mutate it — so the motion system can be judged honestly
- * (numbers glide on change, the ring retargets, streak flips at crossing).
- * Replaced by Supabase + TanStack Query in M2 without touching the panels'
- * render code.
+ * Mock state for the panels that aren't live yet (Food → M3, Lift → M4,
+ * streak → M5). Weight is real as of M2 — weigh-ins and settings come from
+ * Supabase via hooks/use-weight and hooks/use-settings.
  */
 
 import {
@@ -18,7 +15,6 @@ import {
   type ReactNode,
 } from "react";
 import { addDays, getAppDate } from "./dates";
-import type { WeighIn } from "./stats";
 
 export type FoodLog = {
   id: string;
@@ -59,10 +55,7 @@ type MockState = {
   appDate: string;
   calorieTarget: number;
   proteinTarget: number;
-  goalRate: number;
-  goalWeight: number;
   streakBase: number; // consecutive hit days ending yesterday
-  weighIns: WeighIn[];
   foodLogs: FoodLog[];
   meals: Meal[];
   exercises: Exercise[];
@@ -71,44 +64,17 @@ type MockState = {
 type MockActions = {
   logFood: (meal: Pick<Meal, "name" | "calories" | "proteinG">) => void;
   removeFood: (id: string) => void;
-  logWeight: (weightLbs: number) => void;
   logSet: (exerciseId: string, weightLbs: number, reps: number) => void;
 };
 
 const MockContext = createContext<(MockState & MockActions) | null>(null);
-
-/** Deterministic day-to-day noise — no Math.random (hydration-safe) */
-const NOISE = [
-  0.3, -0.2, 0.4, 0.0, -0.3, 0.5, 0.1, -0.4, 0.2, 0.6, -0.1, 0.3, -0.5, 0.2,
-  0.4, -0.2, 0.1, 0.5, -0.3, 0.0, 0.4, -0.1, 0.2, -0.4, 0.6, 0.1, -0.2, 0.3,
-  0.0, 0.4, -0.3, 0.2, 0.5, -0.1, 0.3,
-];
-
-function buildWeightSeries(appDate: string): WeighIn[] {
-  const series: WeighIn[] = [];
-  const days = 35;
-  for (let i = days - 1; i >= 0; i--) {
-    // ~+0.55 lb/week trend up to 125.8 today, with noise; a few skipped days
-    if (i !== 0 && (i % 9 === 4 || i % 13 === 7)) continue;
-    const trend = 125.8 - (0.55 / 7) * i;
-    const noise = i === 0 ? 0 : NOISE[i % NOISE.length] * 0.45;
-    series.push({
-      date: addDays(appDate, -i),
-      weightLbs: Math.round((trend + noise) * 10) / 10,
-    });
-  }
-  return series;
-}
 
 function initialState(appDate: string): MockState {
   return {
     appDate,
     calorieTarget: 2700,
     proteinTarget: 135,
-    goalRate: 0.5,
-    goalWeight: 185,
     streakBase: 6,
-    weighIns: buildWeightSeries(appDate),
     foodLogs: [
       {
         id: "f1",
@@ -234,18 +200,6 @@ export function MockProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const logWeight = useCallback((weightLbs: number) => {
-    setState((s) => {
-      const rest = s.weighIns.filter((w) => w.date !== s.appDate);
-      return {
-        ...s,
-        weighIns: [...rest, { date: s.appDate, weightLbs }].sort((a, b) =>
-          a.date < b.date ? -1 : 1,
-        ),
-      };
-    });
-  }, []);
-
   const logSet = useCallback(
     (exerciseId: string, weightLbs: number, reps: number) => {
       setState((s) => ({
@@ -283,8 +237,8 @@ export function MockProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ ...state, logFood, removeFood, logWeight, logSet }),
-    [state, logFood, removeFood, logWeight, logSet],
+    () => ({ ...state, logFood, removeFood, logSet }),
+    [state, logFood, removeFood, logSet],
   );
 
   return <MockContext.Provider value={value}>{children}</MockContext.Provider>;

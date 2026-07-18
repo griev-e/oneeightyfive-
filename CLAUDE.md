@@ -98,11 +98,19 @@ enter-only fades/reveals).
   mount.
 - Scrolling happens inside `Screen` containers only; the page never scrolls.
 
-## Data rules (M1 mock today, Supabase M2+)
+## Data rules
 
-- M1: every number derives from `src/lib/mock.tsx` (one coherent state object,
-  mutable so motion can be judged). M2 replaces it with Supabase + TanStack
-  Query behind `hooks/use-*` — components never import supabase directly.
+- Live domains (Weight, Settings since M2) flow: panel → `hooks/use-*`
+  (TanStack Query, optimistic mutations, IndexedDB persistence via
+  `idb-keyval`) → `/api/*` route handlers → `lib/supabase/server.ts`
+  (secret key, server-only). Components never call supabase or fetch
+  directly; the canonical optimistic-mutation shape lives in
+  `hooks/use-weight.ts`.
+- Not-yet-live domains (Food M3, Lift M4, streaks M5) still derive from
+  `src/lib/mock.tsx`; delete each slice as its milestone lands.
+- Supabase project: `surplus` (`aqykznlpspuguvvoacpi`, us-west-1). Org was
+  at the free 2-project limit — `alpha/delta` is PAUSED to make room; don't
+  unpause it without asking the user.
 - `getAppDate()` in `lib/dates.ts` is the ONLY source of "what day is it" —
   the app-day rolls over at 3 AM local (a 12:30 AM post-workout meal counts
   toward the waking day). Dates are local `YYYY-MM-DD` strings.
@@ -115,14 +123,22 @@ enter-only fades/reveals).
   check. First-ever session sets baselines and fires nothing. No haptics —
   `navigator.vibrate` doesn't exist on iOS.
 
-## Auth invariants (M2)
+## Auth invariants
 
-- **Email OTP codes, not magic links** — links authenticate Safari, not the
-  installed PWA (isolated storage). `signInWithOtp({ shouldCreateUser: false })`
-  + `verifyOtp({ type: "email", token })`.
-- Signups disabled in dashboard; the single user is pre-created. Owner-only RLS
-  (`auth.uid() = user_id`) on every table; publishable key only, no service
-  role in the app.
+- **No Supabase Auth, no email.** A 4-digit PIN gate: `/lock` (design-language
+  PIN pad) → `POST /api/unlock` compares against the `PIN_LOCK` env var
+  (constant-time) and sets a year-long httpOnly cookie whose value is
+  `HMAC-SHA256(key=PIN, "surplus-unlock-v1")` — rotating `PIN_LOCK` logs out
+  every device. `middleware.ts` gates every page and API route (pages →
+  redirect `/lock`, APIs → 401); PWA chrome (manifest/icons/splash) stays
+  public so install works. If `PIN_LOCK` is unset the gate stays open
+  (bootstrap mode) — data routes still fail without the secret key.
+- **Database access is server-only**: RLS is enabled on every table with ZERO
+  policies, so the publishable/anon key can do nothing; the only path is
+  `SUPABASE_SECRET_KEY` inside route handlers. Never put the secret key in
+  client code or `NEXT_PUBLIC_*`.
+- Env vars (Vercel + `.env.local`): `PIN_LOCK`, `SUPABASE_URL`,
+  `SUPABASE_SECRET_KEY`.
 
 ## PWA checklist
 
@@ -138,10 +154,11 @@ enter-only fades/reveals).
 
 - [x] **M1 — shell + design system**: tokens, motion primitives, tab shell,
   all four panels on shared mock data, PWA manifest/icons/splash, `/design`
-  gallery. Deployed to Vercel for iPhone review. ← *awaiting user approval*
-- [ ] **M2 — Supabase + auth + Weight live** (create project — org was at free
-  2-project limit, needs user decision; apply `0001_init` migration; OTP login;
-  TanStack Query + IndexedDB persistence; real weigh-ins + chart + pace)
+  gallery. Approved on-device; live at oneeightyfive.vercel.app.
+- [x] **M2 — PIN gate + Supabase + Weight live**: `surplus` project + full
+  schema (deny-all RLS), PIN lock screen + middleware + unlock cookie,
+  TanStack Query + IndexedDB persistence, real weigh-ins (optimistic upsert,
+  empty/loading states) + settings. Food/Lift/streaks still mock.
 - [ ] **M3 — Nutrition live** (quick-add 2 taps, custom entry + save-as-meal,
   targets sheet + target_history, surplus celebration once/day, edit/delete,
   empty states)
