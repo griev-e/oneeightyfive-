@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+@theme {
+  /* ---- surfaces (elevation = tint + border, never shadow) ---- */
+  --color-canvas: #0a0a0b;
+  --color-raised: #131316;
+  --color-overlay: #1b1b1f;
+
+  /* ---- borders ---- */
+  --color-border-subtle: rgb(255 255 255 / 0.06);
+  --color-border-default: rgb(255 255 255 / 0.1);
+  --color-border-strong: rgb(255 255 255 / 0.16);
+
+  /* ---- text (alpha-based so it blends on any surface) ---- */
+  --color-text-primary: #f4f4f5;
+  --color-text-secondary: rgb(244 244 245 / 0.62);
+  --color-text-tertiary: rgb(244 244 245 / 0.38);
+
+  /* ---- accent + semantic. Accent means "target hit" — nothing else. ---- */
+  --color-accent: #34d399;
+  --color-accent-tint: rgb(52 211 153 / 0.12);
+  --color-accent-border: rgb(52 211 153 / 0.28);
+  --color-pr: #e8b84b;
+  --color-pr-tint: rgb(232 184 75 / 0.12);
+  --color-destructive: rgb(248 113 113 / 0.7);
+
+  /* ---- radius ---- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-sheet: 24px;
+
+  /* ---- type ---- */
+  --font-sans: var(--font-geist-sans), Inter, system-ui, -apple-system,
+    sans-serif;
+  --tracking-hero: -0.035em;
+  --tracking-display: -0.025em;
+  --tracking-tight: -0.02em;
+  --tracking-label: 0.08em;
+
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+html {
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* no double-tap zoom anywhere — this is an app, not a page */
+  touch-action: manipulation;
+}
+
+/* Chrome is not selectable; data values opt back in with .selectable */
+button,
+nav,
+header {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--color-border-strong);
+  outline-offset: 2px;
+}
+
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* ---- numerals: mandatory on every stat ---- */
+@utility tabular-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ---- type scale ---- */
+@utility type-hero {
+  font-size: 3.5rem; /* 56 → 72 on iPad */
+  line-height: 3.75rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-hero);
+  font-variant-numeric: tabular-nums lining-nums;
+  @media (min-width: 1024px) {
+    font-size: 4.5rem;
+    line-height: 4.75rem;
+  }
+}
+
+@utility type-hero-unit {
+  font-size: 1.25rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+@utility type-display {
+  font-size: 2.125rem;
+  line-height: 2.375rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+@utility type-stat {
+  font-size: 1.75rem;
+  line-height: 2rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+@utility type-title {
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+@utility type-headline {
+  font-size: 1.0625rem;
+  line-height: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+}
+
+@utility type-body {
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+@utility type-footnote {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-weight: 400;
+}
+
+@utility type-label {
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+/* ---- layout helpers ---- */
+@utility pb-tab-clearance {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom) + 16px);
+}
+
+/* screen gutters that respect the notch in landscape */
+@utility px-screen {
+  padding-inline: max(env(safe-area-inset-left), 1.25rem)
+    max(env(safe-area-inset-right), 1.25rem);
+  @media (min-width: 1024px) {
+    padding-inline: max(env(safe-area-inset-left), 2rem)
+      max(env(safe-area-inset-right), 2rem);
+  }
+}
