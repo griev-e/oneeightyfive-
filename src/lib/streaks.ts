@@ -43,6 +43,43 @@ export function targetFor(
   return (best ?? earliest)?.calorieTarget ?? fallbackCalories;
 }
 
+/** One day on the streak rail: its intake, the target that ruled it, hit state. */
+export type StreakPoint = {
+  date: string;
+  calories: number;
+  target: number;
+  hit: boolean;
+  /** false = no intake recorded that day (a nub on the rail, not a miss bar) */
+  logged: boolean;
+};
+
+/**
+ * The trailing-window series for the streak sparkline, oldest → newest ending
+ * today. Today reads the live sum (never the closed-day history); every past
+ * day is judged against its own target via `targetFor`, exactly like the
+ * streak count — so the rail and the flame can never disagree.
+ */
+export function streakSeries(
+  historyDays: DaySum[],
+  targets: TargetRow[],
+  today: string,
+  todayCalories: number,
+  fallbackCalories: number,
+  windowDays = 28,
+): StreakPoint[] {
+  const byDate = new Map(historyDays.map((d) => [d.date, d.calories]));
+  const out: StreakPoint[] = [];
+  for (let i = windowDays - 1; i >= 0; i--) {
+    const date = addDays(today, -i);
+    const isToday = date === today;
+    const calories = isToday ? todayCalories : (byDate.get(date) ?? 0);
+    const logged = isToday ? todayCalories > 0 : byDate.has(date);
+    const target = targetFor(date, targets, fallbackCalories);
+    out.push({ date, calories, target, hit: calories >= target, logged });
+  }
+  return out;
+}
+
 export function computeStreak(
   historyDays: DaySum[],
   targets: TargetRow[],

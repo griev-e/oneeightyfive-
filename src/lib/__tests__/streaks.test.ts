@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeStreak, type TargetRow } from "@/lib/streaks";
+import { computeStreak, streakSeries, type TargetRow } from "@/lib/streaks";
 
 const t = (effectiveDate: string, calorieTarget: number): TargetRow => ({
   effectiveDate,
@@ -67,5 +67,38 @@ describe("computeStreak", () => {
     ];
     const s = computeStreak(days, [t("2026-07-17", 2400)], TODAY, 0, 9999);
     expect(s.count).toBe(2);
+  });
+});
+
+describe("streakSeries", () => {
+  it("returns windowDays points, oldest first, ending today", () => {
+    const s = streakSeries([], [], TODAY, 0, 2700, 7);
+    expect(s).toHaveLength(7);
+    expect(s[0].date).toBe("2026-07-12");
+    expect(s[6].date).toBe(TODAY);
+  });
+
+  it("marks hit days against their own target and flags unlogged days", () => {
+    const days = [
+      { date: "2026-07-16", calories: 2800 }, // hit
+      { date: "2026-07-17", calories: 2000 }, // logged miss
+      // TODAY handled by the live sum below
+    ];
+    const s = streakSeries(days, [t("2026-07-01", 2700)], TODAY, 0, 2700, 4);
+    // window: 07-15, 07-16, 07-17, 07-18(today)
+    const byDate = Object.fromEntries(s.map((p) => [p.date, p]));
+    expect(byDate["2026-07-15"]).toMatchObject({ hit: false, logged: false });
+    expect(byDate["2026-07-16"]).toMatchObject({ hit: true, logged: true });
+    expect(byDate["2026-07-17"]).toMatchObject({ hit: false, logged: true });
+    expect(byDate[TODAY]).toMatchObject({ hit: false, logged: false });
+  });
+
+  it("today reads the live sum, not the closed-day history", () => {
+    const s = streakSeries([], [t("2026-07-01", 2700)], TODAY, 2750, 2700, 3);
+    const today = s[s.length - 1];
+    expect(today.date).toBe(TODAY);
+    expect(today.calories).toBe(2750);
+    expect(today.hit).toBe(true);
+    expect(today.logged).toBe(true);
   });
 });
