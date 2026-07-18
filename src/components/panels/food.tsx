@@ -6,51 +6,49 @@ import { Plus } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { ProgressBar } from "@/components/ui/progress-bar";
+import { MacroGrid } from "@/components/ui/macro-grid";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ListRow } from "@/components/ui/list-row";
-import { Sheet } from "@/components/ui/sheet";
-import { NumberPad } from "@/components/ui/number-pad";
-import { useMock } from "@/lib/mock";
+import { EntrySheet } from "@/components/food/entry-sheet";
+import { MealsSheet } from "@/components/food/meals-sheet";
+import { LogDetailSheet } from "@/components/food/log-detail-sheet";
+import { useFoodLogs, useLogFood, useMeals, type FoodLog } from "@/hooks/use-food";
+import { useSettings } from "@/hooks/use-settings";
+import { useAppDate } from "@/hooks/use-app-date";
 import { formatFullDate } from "@/lib/dates";
 import { formatInt } from "@/lib/format";
 import { springs } from "@/lib/motion";
 
 export function FoodPanel({ isActive }: { isActive: boolean }) {
-  const mock = useMock();
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [entry, setEntry] = useState("");
+  const date = useAppDate();
+  const settings = useSettings();
+  const { data: logs = [] } = useFoodLogs(date);
+  const { data: meals = [] } = useMeals();
+  const logFood = useLogFood(date);
 
-  const calories = mock.foodLogs.reduce((s, f) => s + f.calories, 0);
-  const protein = mock.foodLogs.reduce((s, f) => s + f.proteinG, 0);
-  const surplusHit = calories >= mock.calorieTarget;
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [mealsOpen, setMealsOpen] = useState(false);
+  const [detail, setDetail] = useState<FoodLog | null>(null);
 
-  const handleKey = (k: string) => {
-    setEntry((cur) => {
-      if (k === "del") return cur.slice(0, -1);
-      if (k === ".") return cur; // whole calories only
-      if (cur.length >= 4) return cur;
-      if (cur === "" && k === "0") return cur;
-      return cur + k;
+  const calories = logs.reduce((s, l) => s + l.calories, 0);
+  const protein = logs.reduce((s, l) => s + l.proteinG, 0);
+  const carbs = logs.reduce((s, l) => s + l.carbsG, 0);
+  const fat = logs.reduce((s, l) => s + l.fatG, 0);
+  const surplusHit = calories >= settings.calorieTarget;
+
+  const fmtTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
     });
-  };
-
-  const addCustom = () => {
-    const v = parseInt(entry, 10);
-    if (v > 0) {
-      mock.logFood({ name: "Quick add", calories: v, proteinG: 0 });
-      setSheetOpen(false);
-      setEntry("");
-    }
-  };
 
   return (
-    <Screen label={formatFullDate(mock.appDate)} title="Food">
+    <Screen label={formatFullDate(date)} title="Food">
       {/* hero ring */}
       <div className="flex flex-col items-center pt-2 pb-6">
         <ProgressRing
-          value={calories / mock.calorieTarget}
+          value={settings.calorieTarget > 0 ? calories / settings.calorieTarget : 0}
           size={196}
           strokeWidth={12}
           isActive={isActive}
@@ -76,61 +74,90 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
                 exit={{ opacity: 0 }}
                 className="type-label mt-1 text-text-tertiary"
               >
-                of {formatInt(mock.calorieTarget)}
+                of {formatInt(settings.calorieTarget)}
               </motion.span>
             )}
           </AnimatePresence>
         </ProgressRing>
       </div>
 
-      {/* protein */}
+      {/* macros that matter */}
       <div className="mb-8">
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="type-label text-text-tertiary">Protein</span>
-          <span className="type-footnote tabular-nums text-text-secondary">
-            <AnimatedNumber value={protein} /> / {mock.proteinTarget} g
-          </span>
-        </div>
-        <ProgressBar value={protein / mock.proteinTarget} isActive={isActive} />
+        <MacroGrid
+          protein={{ current: protein, target: settings.proteinTargetG }}
+          carbs={{ current: carbs, target: settings.carbTargetG }}
+          fat={{ current: fat, target: settings.fatTargetG }}
+          isActive={isActive}
+        />
       </div>
 
       {/* quick add — saved meals, one tap to log */}
       <div className="mb-2 flex items-center justify-between">
         <span className="type-label text-text-tertiary">Quick add</span>
+        {meals.length > 0 && (
+          <Button
+            variant="ghost"
+            className="-mr-2 h-8 px-2"
+            onClick={() => setMealsOpen(true)}
+          >
+            Edit
+          </Button>
+        )}
       </div>
-      <Card className="divide-y divide-border-subtle p-0 px-3">
-        {mock.meals.slice(0, 5).map((meal) => (
-          <ListRow
-            key={meal.id}
-            title={meal.name}
-            subtitle={`${meal.proteinG} g protein`}
-            trailing={
-              <span className="type-body tabular-nums text-text-secondary">
-                +{formatInt(meal.calories)}
-              </span>
-            }
-            onClick={() => mock.logFood(meal)}
-          />
-        ))}
-      </Card>
+      {meals.length === 0 ? (
+        <Card className="py-6 text-center">
+          <p className="type-body text-text-secondary">
+            Save your staples once, log them in two taps forever.
+          </p>
+          <p className="type-footnote mt-1 text-text-tertiary">
+            Add a custom food below and flip on “Save as meal”.
+          </p>
+        </Card>
+      ) : (
+        <Card className="divide-y divide-border-subtle p-0 px-3">
+          {meals.slice(0, 5).map((meal) => (
+            <ListRow
+              key={meal.id}
+              title={meal.name}
+              subtitle={`${meal.proteinG} g protein`}
+              trailing={
+                <span className="type-body tabular-nums text-text-secondary">
+                  +{formatInt(meal.calories)}
+                </span>
+              }
+              onClick={() =>
+                logFood.mutate({
+                  date,
+                  name: meal.name,
+                  calories: meal.calories,
+                  proteinG: meal.proteinG,
+                  carbsG: meal.carbsG,
+                  fatG: meal.fatG,
+                  mealId: meal.id,
+                })
+              }
+            />
+          ))}
+        </Card>
+      )}
       <Button
         variant="secondary"
         className="mt-3 w-full"
-        onClick={() => setSheetOpen(true)}
+        onClick={() => setEntryOpen(true)}
       >
         <Plus size={18} strokeWidth={2} />
         Add custom
       </Button>
 
       {/* today's log */}
-      {mock.foodLogs.length > 0 && (
+      {logs.length > 0 && (
         <>
           <div className="mt-8 mb-2">
             <span className="type-label text-text-tertiary">Logged today</span>
           </div>
           <Card className="divide-y divide-border-subtle p-0 px-3">
             <AnimatePresence initial={false} mode="popLayout">
-              {mock.foodLogs.map((log) => (
+              {logs.map((log) => (
                 <motion.div
                   key={log.id}
                   layout
@@ -141,46 +168,24 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
                 >
                   <ListRow
                     title={log.name}
-                    subtitle={log.loggedAt}
+                    subtitle={fmtTime(log.loggedAt)}
                     trailing={
                       <span className="type-body tabular-nums text-text-secondary">
                         {formatInt(log.calories)}
                       </span>
                     }
-                    onClick={() => mock.removeFood(log.id)}
+                    onClick={() => setDetail(log)}
                   />
                 </motion.div>
               ))}
             </AnimatePresence>
           </Card>
-          <p className="type-footnote mt-2 text-text-tertiary">
-            Tap an entry to remove it.
-          </p>
         </>
       )}
 
-      <Sheet
-        open={sheetOpen}
-        onOpenChange={(o) => {
-          setSheetOpen(o);
-          if (!o) setEntry("");
-        }}
-        title="Add calories"
-      >
-        <div className="px-4 pt-4 pb-2">
-          <div className="type-label mb-4 text-center text-text-tertiary">
-            Calories
-          </div>
-          <div className="mb-4 flex items-baseline justify-center gap-1.5">
-            <span className="type-display">{entry || "0"}</span>
-            <span className="type-footnote text-text-tertiary">cal</span>
-          </div>
-          <NumberPad onKey={handleKey} />
-          <Button className="mt-4 w-full" onClick={addCustom}>
-            Add
-          </Button>
-        </div>
-      </Sheet>
+      <EntrySheet open={entryOpen} onOpenChange={setEntryOpen} date={date} />
+      <MealsSheet open={mealsOpen} onOpenChange={setMealsOpen} />
+      <LogDetailSheet log={detail} onClose={() => setDetail(null)} date={date} />
     </Screen>
   );
 }

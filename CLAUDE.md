@@ -36,8 +36,13 @@ color/size in a component.
 - **Accent `#34D399` (mint) means "target hit" — nothing else.** Surplus hit,
   on-pace, overload wins. PR moments use `pr #E8B84B` gold. Pace behind/ahead
   states are plain secondary text — this app celebrates, it never scolds, and
-  **nothing is ever red** (muted `destructive` appears only inside delete
-  confirmation sheets, M3+).
+  **nothing is ever red** (muted `destructive` + `destructive-tint/border`
+  appear only inside delete-confirmation swaps, `ui/confirm-swap.tsx`).
+- Macro identity colors: `protein #A78BFA` (violet) · `carbs #0EA5E9` (sky) ·
+  `fat #F472B6` (pink), each with a 12% tint and 28% border token. They are
+  identity hues, NOT status — a macro bar never turns mint/red at any fill.
+  Hitting the protein/fat floor draws a mint CheckDraw beside the label
+  (that's a target-hit moment); carbs are a remainder and never get a check.
 - Type: Geist variable (`geist` npm package) via `--font-geist-sans`. Scale is
   the `type-*` utilities (`hero 56/72`, `display 34`, `stat 28`, `title 22`,
   `headline 17`, `body 15`, `footnote 13`, `label 11 caps +0.08em`). Weight 600
@@ -98,31 +103,85 @@ enter-only fades/reveals).
   mount.
 - Scrolling happens inside `Screen` containers only; the page never scrolls.
 
-## Data rules (M1 mock today, Supabase M2+)
+## Data rules
 
-- M1: every number derives from `src/lib/mock.tsx` (one coherent state object,
-  mutable so motion can be judged). M2 replaces it with Supabase + TanStack
-  Query behind `hooks/use-*` — components never import supabase directly.
+- **Everything is live — mock data is gone** (`lib/mock.tsx` deleted in M3).
+  Every domain flows: panel → `hooks/use-*` (TanStack Query, optimistic
+  mutations, IndexedDB persistence via `idb-keyval`) → `/api/*` route handlers
+  (validators in `lib/api.ts`, camelCase JSON) → `lib/supabase/server.ts`
+  (secret key, server-only). Components never call supabase or fetch directly;
+  the canonical optimistic-mutation shape lives in `hooks/use-weight.ts` —
+  food/set mutations refine it with targeted per-row rollback so a rollback
+  never clobbers a concurrent log.
+- Quick-add meals are never invalidated on log (no re-sort under the finger);
+  `use_count` bumps are best-effort server-side. Set logging retries ×3 with
+  backoff (gym connectivity); set numbers are server-assigned and keep gaps.
+- Supabase project: `surplus` (`aqykznlpspuguvvoacpi`, us-west-1). Org was
+  at the free 2-project limit — `alpha/delta` is PAUSED to make room; don't
+  unpause it without asking the user.
 - `getAppDate()` in `lib/dates.ts` is the ONLY source of "what day is it" —
   the app-day rolls over at 3 AM local (a 12:30 AM post-workout meal counts
-  toward the waking day). Dates are local `YYYY-MM-DD` strings.
+  toward the waking day). Dates are local `YYYY-MM-DD` strings, always
+  client-supplied — the server runs UTC and never guesses the day.
 - Derived math is pure in `lib/stats.ts`: 7-day rolling average (mean of
   existing points in window, never interpolate); pace = `RA(latest) −
   RA(latest−7d)` scaled to lb/wk, needs ≥5 weigh-ins spanning ≥7d, on-pace band
   = goal ±0.25; `e1rm` = Epley with reps clamped at 12. Streaks/PRs are always
   derived, never stored.
-- Celebration tiers per set: PR (gold badge) > overload win (mint ▲) > plain
-  check. First-ever session sets baselines and fires nothing. No haptics —
-  `navigator.vibrate` doesn't exist on iOS.
+- Streaks (`lib/streaks.ts`) count calorie-target days only, judged against
+  `target_history` (the target that was live THAT day, via `targetFor`);
+  today never breaks the streak mid-day; a missing day is a miss.
+- PR/overload (`stats.ts classifySet`): PR = beats all-time server records
+  (weighted lifts: max weight or max e1RM; bodyweight: max reps); overload =
+  e1RM beats the positional ghost from last session. `serverRecords === null`
+  means first-ever session — the whole day stays silent and sets baselines.
+  Tiers per set: PR (gold badge) > overload win (mint ▲) > plain check. No
+  haptics — `navigator.vibrate` doesn't exist on iOS.
 
-## Auth invariants (M2)
+## Plan engine (lib/plan.ts)
 
-- **Email OTP codes, not magic links** — links authenticate Safari, not the
-  installed PWA (isolated storage). `signInWithOtp({ shouldCreateUser: false })`
-  + `verifyOtp({ type: "email", token })`.
-- Signups disabled in dashboard; the single user is pre-created. Owner-only RLS
-  (`auth.uid() = user_id`) on every table; publishable key only, no service
-  role in the app.
+- The 13-step questionnaire (`/setup`, first-run gated by
+  `profile.completed_at`) feeds `buildPlan`, which is **server-authoritative**:
+  `PUT /api/profile` recomputes the plan server-side and applies targets via
+  the `apply_targets` RPC (atomic settings + `target_history` +
+  `plan_events` write). The client runs the same pure function only to
+  preview in `components/setup/plan-reveal.tsx`.
+- BMR = Mifflin-St Jeor, blended 50/50 with Katch-McArdle when body-fat% is
+  known. TDEE is decomposed: NEAT factor (1.35/1.50/1.65/1.85) × BMR +
+  MET-based training add-ons (lift 4.0 × kg × hrs, cardio 5.0 × kg × hrs).
+- Gain rate = %BW/month table by training tier (novice <12mo / intermediate
+  12–36 / advanced >36, advancing automatically from `training_months_as_of`)
+  × bulk style; surplus/lb from p-ratio (leaner gains are cheaper); +250 kcal
+  floor while BMI < 18.5. **Never cut a bulker**: computed target below the
+  current one is floored unless weight pace is already "ahead".
+- Protein 0.80–0.95 g/lb by appetite (1.05 × LBM when BF ≥ 25%); fat =
+  max(25–30% kcal, 0.3 g/lb) capped at 40%; carbs = remainder with a 3 g/kg
+  floor. Observed TDEE (from logged intake + weight trend, ≥"logged day"
+  quality gates) blends into the formula confidence-weighted, clamped ±25%.
+- Projection = weekly simulation with tier taper; goal ≤ current weight puts
+  the plan in maintenance mode instead of bricking. 23 vitest tests pin the
+  numbers (`src/lib/__tests__/`) — run `npx vitest run` after touching math.
+- Recalibration UI ("your real TDEE looks like X — apply?") is deferred to
+  M4; the math and `plan_events` schema already support it.
+
+## Auth invariants
+
+- **No Supabase Auth, no email.** A 4-digit PIN gate: `/lock` (design-language
+  PIN pad, time-of-day greeting from the profile name cached in localStorage)
+  → `POST /api/unlock` compares against the `PIN_LOCK` env var
+  (constant-time) and sets a year-long httpOnly cookie whose value is
+  `HMAC-SHA256(key=PIN, "surplus-unlock-v1")` — rotating `PIN_LOCK` logs out
+  every device. `middleware.ts` gates every page and API route (pages →
+  redirect `/lock`, APIs → 401); PWA chrome (manifest/icons/splash) stays
+  public so install works. If `PIN_LOCK` is unset the gate stays open
+  (bootstrap mode) — data routes still fail without the secret key.
+- **Database access is server-only**: RLS is enabled on every table with ZERO
+  policies, so the publishable/anon key can do nothing; the only path is
+  `SUPABASE_SECRET_KEY` inside route handlers. Never put the secret key in
+  client code or `NEXT_PUBLIC_*`. The `apply_targets` RPC is pinned
+  (`search_path = ''`) with EXECUTE revoked from anon/authenticated/public.
+- Env vars (Vercel + `.env.local`): `PIN_LOCK`, `SUPABASE_URL`,
+  `SUPABASE_SECRET_KEY`.
 
 ## PWA checklist
 
@@ -138,14 +197,19 @@ enter-only fades/reveals).
 
 - [x] **M1 — shell + design system**: tokens, motion primitives, tab shell,
   all four panels on shared mock data, PWA manifest/icons/splash, `/design`
-  gallery. Deployed to Vercel for iPhone review. ← *awaiting user approval*
-- [ ] **M2 — Supabase + auth + Weight live** (create project — org was at free
-  2-project limit, needs user decision; apply `0001_init` migration; OTP login;
-  TanStack Query + IndexedDB persistence; real weigh-ins + chart + pace)
-- [ ] **M3 — Nutrition live** (quick-add 2 taps, custom entry + save-as-meal,
-  targets sheet + target_history, surplus celebration once/day, edit/delete,
-  empty states)
-- [ ] **M4 — Workout live** (picker + inline create, ghost prefill, PR/overload
-  tiers, session volume chip, iPad two-pane, minimal service worker)
-- [ ] **M5 — Dashboard/streaks + hardening** (real streak calc, sparkline,
-  reduced-motion audit, offline polish)
+  gallery. Approved on-device; live at oneeightyfive.vercel.app.
+- [x] **M2 — PIN gate + Supabase + Weight live**: `surplus` project + full
+  schema (deny-all RLS), PIN lock screen + middleware + unlock cookie,
+  TanStack Query + IndexedDB persistence, real weigh-ins (optimistic upsert,
+  empty/loading states) + settings. Food/Lift/streaks still mock.
+- [x] **M3 — fully functional, zero mock**: onboarding questionnaire (13
+  steps) + plan engine + plan reveal, full-macro nutrition (quick-add,
+  custom entry + save-as-meal, edit/delete + Undo, macro grid), live workout
+  logging (ghost prefill, PR/overload tiers, first-session baselines,
+  edit/archive), real streaks vs `target_history`, `plan_events` +
+  recalibration math (UI in M4), 23 unit tests. ← *awaiting user approval*
+- [ ] **M4 — Workout polish + recalibration UI** (inline exercise create in
+  picker, session volume chip, "your real TDEE" recalibration card, iPad
+  two-pane, minimal service worker for gym connectivity)
+- [ ] **M5 — Dashboard/streaks + hardening** (streak sparkline, surplus
+  celebration once/day, reduced-motion audit, offline polish)

@@ -5,7 +5,7 @@ import { motion, MotionConfig } from "motion/react";
 import { springs } from "@/lib/motion";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { ProgressBar } from "@/components/ui/progress-bar";
+import { MacroGrid } from "@/components/ui/macro-grid";
 import { CheckDraw } from "@/components/ui/check-draw";
 import { PRBadge } from "@/components/ui/pr-badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,9 @@ const COLORS = [
   ["accent", "bg-accent"],
   ["accent-tint", "bg-accent-tint"],
   ["pr", "bg-pr"],
+  ["protein", "bg-protein"],
+  ["carbs", "bg-carbs"],
+  ["fat", "bg-fat"],
 ] as const;
 
 const TYPE_RAMP = [
@@ -127,7 +130,12 @@ function Gallery() {
             </span>
           </ProgressRing>
           <div className="w-full">
-            <ProgressBar value={ring} />
+            <MacroGrid
+              protein={{ current: Math.round(ring * 135), target: 135 }}
+              carbs={{ current: Math.round(ring * 360), target: 360 }}
+              fat={{ current: Math.round(ring * 80), target: 80 }}
+              isActive
+            />
           </div>
           <div className="flex gap-2">
             {[0.25, 0.72, 1].map((v) => (

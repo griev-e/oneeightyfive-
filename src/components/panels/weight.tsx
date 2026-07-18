@@ -8,10 +8,12 @@ import { Card } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { NumberPad } from "@/components/ui/number-pad";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, type ChartPoint } from "@/components/charts/line-chart";
-import { useMock } from "@/lib/mock";
+import { useWeighIns, useLogWeight } from "@/hooks/use-weight";
+import { useSettings } from "@/hooks/use-settings";
 import { computePace, rollingAverage } from "@/lib/stats";
-import { addDays, formatShortDate } from "@/lib/dates";
+import { addDays, getAppDate, formatShortDate } from "@/lib/dates";
 import { formatPace, formatWeight } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -22,31 +24,40 @@ const RANGES = [
 ] as const;
 
 export function WeightPanel({ isActive }: { isActive: boolean }) {
-  const mock = useMock();
+  const { data: weighIns = [], isPending } = useWeighIns();
+  const settings = useSettings();
+  const logWeight = useLogWeight();
+
   const [range, setRange] = useState<(typeof RANGES)[number]["id"]>("1m");
   const [scrub, setScrub] = useState<ChartPoint | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [entry, setEntry] = useState<string | null>(null);
 
-  const latest = mock.weighIns[mock.weighIns.length - 1];
+  const latest = weighIns[weighIns.length - 1];
+  const empty = !isPending && weighIns.length === 0;
+  const loading = isPending && weighIns.length === 0;
+
   const pace = useMemo(
-    () => computePace(mock.weighIns, mock.goalRate),
-    [mock.weighIns, mock.goalRate],
+    () => computePace(weighIns, settings.goalRateLbsPerWeek),
+    [weighIns, settings.goalRateLbsPerWeek],
   );
 
   const visible = useMemo(() => {
     const days = RANGES.find((r) => r.id === range)!.days;
-    if (!isFinite(days)) return mock.weighIns;
-    const cutoff = addDays(mock.appDate, -days);
-    return mock.weighIns.filter((w) => w.date >= cutoff);
-  }, [mock.weighIns, mock.appDate, range]);
+    if (!isFinite(days)) return weighIns;
+    const cutoff = addDays(getAppDate(), -days);
+    return weighIns.filter((w) => w.date >= cutoff);
+  }, [weighIns, range]);
 
   const avg = useMemo(() => rollingAverage(visible), [visible]);
 
   const shown = scrub ?? latest;
-  const toGoal = mock.goalWeight - (latest?.weightLbs ?? 0);
+  const toGoal =
+    settings.goalWeightLbs !== null && latest
+      ? settings.goalWeightLbs - latest.weightLbs
+      : null;
 
-  const entryValue = entry ?? (latest ? formatWeight(latest.weightLbs) : "0");
+  const entryValue = entry ?? (latest ? formatWeight(latest.weightLbs) : "");
 
   const handleKey = (k: string) => {
     setEntry((prev) => {
@@ -64,7 +75,7 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
   const save = () => {
     const v = parseFloat(entryValue);
     if (v >= 50 && v <= 500) {
-      mock.logWeight(v);
+      logWeight.mutate({ date: getAppDate(), weightLbs: v });
       setSheetOpen(false);
       setEntry(null);
     }
@@ -80,60 +91,89 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
         </Button>
       }
     >
-      {/* hero — retargets while scrubbing the chart */}
-      <div className="flex items-baseline gap-2">
-        <AnimatedNumber
-          value={shown?.weightLbs ?? 0}
-          format={formatWeight}
-          className="type-hero"
-        />
-        <span className="type-hero-unit text-text-secondary">lbs</span>
-      </div>
+      {loading ? (
+        <>
+          <Skeleton className="h-15 w-52" />
+          <Skeleton className="mt-4 h-8 w-40" />
+          <Skeleton className="mt-5 h-72 w-full rounded-2xl" />
+        </>
+      ) : empty ? (
+        <>
+          <div className="flex items-baseline gap-2">
+            <span className="type-hero text-text-tertiary">—</span>
+            <span className="type-hero-unit text-text-tertiary">lbs</span>
+          </div>
+          <p className="type-body mt-3 text-text-secondary">
+            No weigh-ins yet. Log the first one below — same time every
+            morning works best.
+          </p>
+          <Card className="mt-6 flex h-44 items-center justify-center">
+            <span className="type-footnote text-text-tertiary">
+              Your trend appears here after a few weigh-ins
+            </span>
+          </Card>
+        </>
+      ) : (
+        <>
+          {/* hero — retargets while scrubbing the chart */}
+          <div className="flex items-baseline gap-2">
+            <AnimatedNumber
+              value={shown?.weightLbs ?? 0}
+              format={formatWeight}
+              className="type-hero"
+            />
+            <span className="type-hero-unit text-text-secondary">lbs</span>
+          </div>
 
-      <div className="mt-3 flex h-8 items-center gap-2">
-        {pace.status === "ready" ? (
-          <span
-            className={cn(
-              "type-footnote rounded-full px-3 py-1 font-medium tabular-nums",
-              pace.band === "on-pace"
-                ? "border border-accent-border bg-accent-tint text-accent"
-                : "border border-border-subtle bg-raised text-text-secondary",
+          <div className="mt-3 flex h-8 items-center gap-2">
+            {pace.status === "ready" ? (
+              <span
+                className={cn(
+                  "type-footnote rounded-full px-3 py-1 font-medium tabular-nums",
+                  pace.band === "on-pace"
+                    ? "border border-accent-border bg-accent-tint text-accent"
+                    : "border border-border-subtle bg-raised text-text-secondary",
+                )}
+              >
+                {formatPace(pace.lbsPerWeek)} lb/wk ·{" "}
+                {pace.band === "on-pace"
+                  ? "On pace"
+                  : pace.band === "behind"
+                    ? "Behind — eat more"
+                    : "Ahead of pace"}
+              </span>
+            ) : (
+              <span className="type-footnote text-text-tertiary">
+                Gathering data —{" "}
+                {pace.status === "gathering" ? pace.have : 0} of 5 weigh-ins
+              </span>
             )}
-          >
-            {formatPace(pace.lbsPerWeek)} lb/wk ·{" "}
-            {pace.band === "on-pace"
-              ? "On pace"
-              : pace.band === "behind"
-                ? "Behind — eat more"
-                : "Ahead of pace"}
-          </span>
-        ) : (
-          <span className="type-footnote text-text-tertiary">
-            Gathering data — {pace.status === "gathering" ? pace.have : 0} of 5
-            weigh-ins
-          </span>
-        )}
-      </div>
+          </div>
 
-      <Card className="mt-5 p-4">
-        <LineChart
-          data={visible}
-          avg={avg}
-          isActive={isActive}
-          onScrub={setScrub}
-        />
-        <div className="mt-4">
-          <Segmented
-            options={RANGES.map(({ id, label }) => ({ id, label }))}
-            value={range}
-            onChange={setRange}
-          />
-        </div>
-      </Card>
+          <Card className="mt-5 p-4">
+            <LineChart
+              data={visible}
+              avg={avg}
+              isActive={isActive}
+              onScrub={setScrub}
+            />
+            <div className="mt-4">
+              <Segmented
+                options={RANGES.map(({ id, label }) => ({ id, label }))}
+                value={range}
+                onChange={setRange}
+              />
+            </div>
+          </Card>
 
-      <div className="type-footnote mt-3 tabular-nums text-text-tertiary">
-        Goal {mock.goalWeight} lbs · {formatWeight(Math.max(toGoal, 0))} to go
-      </div>
+          {toGoal !== null && (
+            <div className="type-footnote mt-3 tabular-nums text-text-tertiary">
+              Goal {formatWeight(settings.goalWeightLbs!)} lbs ·{" "}
+              {formatWeight(Math.max(toGoal, 0))} to go
+            </div>
+          )}
+        </>
+      )}
 
       <Sheet
         open={sheetOpen}

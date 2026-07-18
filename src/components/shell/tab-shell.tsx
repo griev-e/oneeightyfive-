@@ -8,8 +8,10 @@ import {
   useState,
 } from "react";
 import { motion } from "motion/react";
+import { useRouter } from "next/navigation";
 import { TABS, type TabId } from "./tabs";
 import { TabBar } from "./tab-bar";
+import { useProfile } from "@/hooks/use-profile";
 import { TodayPanel } from "@/components/panels/today";
 import { WeightPanel } from "@/components/panels/weight";
 import { FoodPanel } from "@/components/panels/food";
@@ -38,6 +40,19 @@ const PANELS: Record<TabId, React.ComponentType<{ isActive: boolean }>> = {
  */
 export function TabShell({ initialTab }: { initialTab: TabId }) {
   const [active, setActive] = useState<TabId>(initialTab);
+  const router = useRouter();
+  const { data: profile } = useProfile();
+
+  // First run: no completed questionnaire → straight to /setup (skippable).
+  // Until the profile resolves (no cache), render only the canvas — never
+  // flash Today ahead of a redirect.
+  const skipped =
+    typeof window !== "undefined" &&
+    window.localStorage.getItem("surplus_setup_skipped") === "1";
+  const needsSetup = profile?.completedAt === null && !skipped;
+  useEffect(() => {
+    if (needsSetup) router.replace("/setup");
+  }, [needsSetup, router]);
 
   const switchTab = useCallback((id: TabId) => {
     setActive(id);
@@ -60,6 +75,11 @@ export function TabShell({ initialTab }: { initialTab: TabId }) {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  if (profile === undefined || needsSetup) {
+    // canvas only — visually identical to the splash
+    return <div className="fixed inset-0 bg-canvas" />;
+  }
 
   return (
     <TabSwitchContext.Provider value={switchTab}>
