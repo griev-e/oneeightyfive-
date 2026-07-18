@@ -55,3 +55,10 @@ export function formatFullDate(iso: string): string {
 export function formatShortDate(iso: string): string {
   return SHORT.format(fromISO(iso));
 }
+
+/** Monday of the week containing the given app-day. */
+export function startOfWeek(iso: string): string {
+  const d = fromISO(iso);
+  const dow = (d.getDay() + 6) % 7; // Mon = 0
+  return addDays(iso, -dow);
+}

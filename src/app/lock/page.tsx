@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { motion, MotionConfig } from "motion/react";
 import { NumberPad } from "@/components/ui/number-pad";
 import { cn } from "@/lib/cn";
@@ -34,11 +34,27 @@ function PlusMark({ size = 44 }: { size?: number }) {
   );
 }
 
+function greeting(): string {
+  const h = new Date().getHours();
+  return h < 4 || h >= 18
+    ? "Good evening"
+    : h < 12
+      ? "Good morning"
+      : "Good afternoon";
+}
+
+const noopSubscribe = () => () => {};
+
 export default function LockPage() {
   const [digits, setDigits] = useState("");
   const [checking, setChecking] = useState(false);
   const [shake, setShake] = useState(0);
   const busy = useRef(false);
+  const name = useSyncExternalStore(
+    noopSubscribe,
+    () => window.localStorage.getItem("surplus_name"),
+    () => null,
+  );
 
   const submit = async (pin: string) => {
     if (busy.current) return;
@@ -51,6 +67,12 @@ export default function LockPage() {
         body: JSON.stringify({ pin }),
       });
       if (res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          name?: string;
+        } | null;
+        if (body?.name) {
+          window.localStorage.setItem("surplus_name", body.name);
+        }
         // full navigation so the middleware sees the fresh cookie
         window.location.replace("/");
         return;
@@ -85,6 +107,12 @@ export default function LockPage() {
         <div className="flex flex-1 flex-col items-center justify-center gap-8">
           <PlusMark />
           <div className="flex flex-col items-center gap-5">
+            {name && (
+              <span className="type-headline text-text-secondary">
+                {greeting()},{" "}
+                {name.charAt(0).toUpperCase() + name.slice(1)}
+              </span>
+            )}
             <span className="type-label text-text-tertiary">Enter PIN</span>
             <motion.div
               key={shake}
@@ -110,7 +138,7 @@ export default function LockPage() {
           </div>
         </div>
         <div className="w-full max-w-90 pb-[max(env(safe-area-inset-bottom),24px)]">
-          <NumberPad onKey={handleKey} />
+          <NumberPad onKey={handleKey} decimal={false} />
         </div>
       </main>
     </MotionConfig>

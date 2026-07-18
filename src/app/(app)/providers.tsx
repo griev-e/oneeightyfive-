@@ -6,7 +6,6 @@ import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { get, set, del } from "idb-keyval";
-import { MockProvider } from "@/lib/mock";
 import { ToastProvider } from "@/components/ui/toast";
 
 const noopSubscribe = () => () => {};
@@ -27,7 +26,7 @@ function ClientGate({ children }: { children: React.ReactNode }) {
 }
 
 /** Query cache persists to IndexedDB so a cold PWA launch paints instantly. */
-const CACHE_BUSTER = "v1";
+const CACHE_BUSTER = "v2";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -63,9 +62,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             buster: CACHE_BUSTER,
           }}
         >
-          <MockProvider>
-            <ToastProvider>{children}</ToastProvider>
-          </MockProvider>
+          <ToastProvider>{children}</ToastProvider>
         </PersistQueryClientProvider>
       </ClientGate>
     </MotionConfig>

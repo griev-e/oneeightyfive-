@@ -2,33 +2,58 @@
 
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { ChevronRight } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { useTabSwitch } from "@/components/shell/tab-shell";
 import { AnimatedNumber } from "@/components/ui/animated-number";
-import { ProgressBar } from "@/components/ui/progress-bar";
-import { PressableCard } from "@/components/ui/card";
+import { MacroGrid } from "@/components/ui/macro-grid";
+import { Card, PressableCard } from "@/components/ui/card";
 import { Sparkline } from "@/components/charts/sparkline";
-import { useMock } from "@/lib/mock";
+import { useFoodLogs } from "@/hooks/use-food";
+import { useSets } from "@/hooks/use-workouts";
 import { useWeighIns } from "@/hooks/use-weight";
 import { useSettings } from "@/hooks/use-settings";
+import { useProfile } from "@/hooks/use-profile";
+import { useDaySummaries } from "@/hooks/use-day-summaries";
+import { useAppDate } from "@/hooks/use-app-date";
 import { computePace, rollingAverage } from "@/lib/stats";
+import { computeStreak } from "@/lib/streaks";
 import { formatFullDate } from "@/lib/dates";
 import { formatInt, formatPace, formatWeight } from "@/lib/format";
 import { springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import { useRouter } from "next/navigation";
 
 export function TodayPanel({ isActive }: { isActive: boolean }) {
-  const mock = useMock();
+  const router = useRouter();
+  const date = useAppDate();
   const switchTab = useTabSwitch();
-
-  const calories = mock.foodLogs.reduce((s, f) => s + f.calories, 0);
-  const protein = mock.foodLogs.reduce((s, f) => s + f.proteinG, 0);
-  const remaining = mock.calorieTarget - calories;
-  const surplusHit = remaining <= 0;
-  const streak = surplusHit ? mock.streakBase + 1 : mock.streakBase;
-
-  const { data: weighIns = [] } = useWeighIns();
   const settings = useSettings();
+  const { data: profile } = useProfile();
+  const { data: logs = [] } = useFoodLogs(date);
+  const { data: sets = [] } = useSets(date);
+  const { data: weighIns = [] } = useWeighIns();
+  const summaries = useDaySummaries();
+
+  const calories = logs.reduce((s, l) => s + l.calories, 0);
+  const protein = logs.reduce((s, l) => s + l.proteinG, 0);
+  const carbs = logs.reduce((s, l) => s + l.carbsG, 0);
+  const fat = logs.reduce((s, l) => s + l.fatG, 0);
+  const remaining = settings.calorieTarget - calories;
+  const surplusHit = remaining <= 0;
+
+  const streak = useMemo(
+    () =>
+      computeStreak(
+        summaries.days,
+        summaries.targets,
+        date,
+        calories,
+        settings.calorieTarget,
+      ),
+    [summaries.days, summaries.targets, date, calories, settings.calorieTarget],
+  );
+
   const latest = weighIns[weighIns.length - 1];
   const pace = useMemo(
     () => computePace(weighIns, settings.goalRateLbsPerWeek),
@@ -39,10 +64,10 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
     [weighIns],
   );
 
-  const setsToday = mock.exercises.reduce((s, e) => s + e.today.length, 0);
+  const needsSetup = profile !== undefined && profile.completedAt === null;
 
   return (
-    <Screen label={formatFullDate(mock.appDate)} title="Today">
+    <Screen label={formatFullDate(date)} title="Today">
       {/* hero: today's calories */}
       <button
         type="button"
@@ -75,22 +100,42 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
                 className="type-body text-text-secondary"
               >
                 {formatInt(remaining)} to go · target{" "}
-                {formatInt(mock.calorieTarget)}
+                {formatInt(settings.calorieTarget)}
               </motion.span>
             )}
           </AnimatePresence>
         </div>
       </button>
 
-      {/* protein */}
-      <div className="mt-8">
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="type-label text-text-tertiary">Protein</span>
-          <span className="type-footnote tabular-nums text-text-secondary">
-            <AnimatedNumber value={protein} /> / {mock.proteinTarget} g
+      {/* set up your plan — until the questionnaire has run */}
+      {needsSetup && (
+        <PressableCard
+          className="mt-6 flex items-center justify-between"
+          onClick={() => router.push("/setup")}
+        >
+          <span>
+            <span className="type-headline block">Set up your plan</span>
+            <span className="type-footnote mt-0.5 block text-text-secondary">
+              A 2-minute questionnaire tailors your calories and macros.
+            </span>
           </span>
-        </div>
-        <ProgressBar value={protein / mock.proteinTarget} isActive={isActive} />
+          <ChevronRight
+            size={18}
+            strokeWidth={1.75}
+            className="shrink-0 text-text-tertiary"
+          />
+        </PressableCard>
+      )}
+
+      {/* macros that matter */}
+      <div className="mt-8">
+        <MacroGrid
+          protein={{ current: protein, target: settings.proteinTargetG }}
+          carbs={{ current: carbs, target: settings.carbTargetG }}
+          fat={{ current: fat, target: settings.fatTargetG }}
+          isActive={isActive}
+          onPress={() => switchTab("food")}
+        />
       </div>
 
       {/* cards */}
@@ -127,17 +172,14 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
           <PressableCard onClick={() => switchTab("lift")} className="p-5">
             <div className="type-label mb-1 text-text-tertiary">Lift</div>
             <div className="type-headline">
-              {setsToday > 0 ? (
+              {sets.length > 0 ? (
                 <>
-                  <AnimatedNumber value={setsToday} />{" "}
-                  {setsToday === 1 ? "set" : "sets"} logged
+                  <AnimatedNumber value={sets.length} />{" "}
+                  {sets.length === 1 ? "set" : "sets"} logged
                 </>
               ) : (
                 "No session yet"
               )}
-            </div>
-            <div className="type-footnote mt-0.5 text-text-tertiary">
-              This week: 2 of 3
             </div>
           </PressableCard>
 
@@ -147,26 +189,25 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
             </div>
             <div className="flex items-baseline gap-1.5">
               <AnimatedNumber
-                value={streak}
-                className={cn(
-                  "type-stat",
-                  surplusHit && "text-accent",
-                )}
+                value={streak.count}
+                className={cn("type-stat", streak.todayHit && "text-accent")}
               />
-              <span className="type-footnote text-text-tertiary">days</span>
+              <span className="type-footnote text-text-tertiary">
+                {streak.count >= 366 ? "365+ days" : "days"}
+              </span>
             </div>
           </PressableCard>
         </div>
       </div>
 
       {/* today's log, at a glance */}
-      {mock.foodLogs.length > 0 && (
+      {logs.length > 0 && (
         <div className="mt-10">
           <div className="type-label mb-2 text-text-tertiary">
             Logged today
           </div>
           <div className="divide-y divide-border-subtle">
-            {mock.foodLogs.slice(-3).map((log) => (
+            {logs.slice(-3).map((log) => (
               <button
                 key={log.id}
                 type="button"
@@ -183,6 +224,15 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* first-run guidance when the day is a blank slate */}
+      {logs.length === 0 && !needsSetup && (
+        <Card className="mt-10 py-6 text-center">
+          <p className="type-body text-text-secondary">
+            Nothing logged yet — the surplus starts with breakfast.
+          </p>
+        </Card>
       )}
     </Screen>
   );

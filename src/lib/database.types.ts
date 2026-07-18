@@ -47,8 +47,10 @@ export type Database = {
       food_logs: {
         Row: {
           calories: number
+          carbs_g: number
           created_at: string
           date: string
+          fat_g: number
           id: string
           logged_at: string
           meal_id: string | null
@@ -58,8 +60,10 @@ export type Database = {
         }
         Insert: {
           calories: number
+          carbs_g?: number
           created_at?: string
           date: string
+          fat_g?: number
           id?: string
           logged_at?: string
           meal_id?: string | null
@@ -69,8 +73,10 @@ export type Database = {
         }
         Update: {
           calories?: number
+          carbs_g?: number
           created_at?: string
           date?: string
+          fat_g?: number
           id?: string
           logged_at?: string
           meal_id?: string | null
@@ -92,7 +98,9 @@ export type Database = {
         Row: {
           archived_at: string | null
           calories: number
+          carbs_g: number
           created_at: string
+          fat_g: number
           id: string
           last_used_at: string | null
           name: string
@@ -103,7 +111,9 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           calories: number
+          carbs_g?: number
           created_at?: string
+          fat_g?: number
           id?: string
           last_used_at?: string | null
           name: string
@@ -114,7 +124,9 @@ export type Database = {
         Update: {
           archived_at?: string | null
           calories?: number
+          carbs_g?: number
           created_at?: string
+          fat_g?: number
           id?: string
           last_used_at?: string | null
           name?: string
@@ -124,11 +136,104 @@ export type Database = {
         }
         Relationships: []
       }
+      plan_events: {
+        Row: {
+          action: string
+          created_at: string
+          date: string
+          id: string
+          observed_tdee: number | null
+          target_before: number | null
+          target_suggested: number | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          date: string
+          id?: string
+          observed_tdee?: number | null
+          target_before?: number | null
+          target_suggested?: number | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          date?: string
+          id?: string
+          observed_tdee?: number | null
+          target_before?: number | null
+          target_suggested?: number | null
+        }
+        Relationships: []
+      }
+      profile: {
+        Row: {
+          appetite: string | null
+          birth_date: string | null
+          body_fat_pct: number | null
+          bulk_style: string | null
+          cardio_min_per_week: number | null
+          completed_at: string | null
+          created_at: string
+          height_in: number | null
+          id: number
+          lift_days_per_week: number | null
+          name: string
+          neat_tier: string | null
+          session_min: number | null
+          sex: string
+          training_months: number | null
+          training_months_as_of: string | null
+          updated_at: string
+        }
+        Insert: {
+          appetite?: string | null
+          birth_date?: string | null
+          body_fat_pct?: number | null
+          bulk_style?: string | null
+          cardio_min_per_week?: number | null
+          completed_at?: string | null
+          created_at?: string
+          height_in?: number | null
+          id?: number
+          lift_days_per_week?: number | null
+          name?: string
+          neat_tier?: string | null
+          session_min?: number | null
+          sex?: string
+          training_months?: number | null
+          training_months_as_of?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appetite?: string | null
+          birth_date?: string | null
+          body_fat_pct?: number | null
+          bulk_style?: string | null
+          cardio_min_per_week?: number | null
+          completed_at?: string | null
+          created_at?: string
+          height_in?: number | null
+          id?: number
+          lift_days_per_week?: number | null
+          name?: string
+          neat_tier?: string | null
+          session_min?: number | null
+          sex?: string
+          training_months?: number | null
+          training_months_as_of?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           calorie_target: number
+          carb_target_g: number
           created_at: string
+          fat_target_g: number
           goal_rate_lbs_per_week: number
+          goal_rate_source: string
           goal_weight_lbs: number | null
           id: number
           protein_target_g: number
@@ -136,8 +241,11 @@ export type Database = {
         }
         Insert: {
           calorie_target?: number
+          carb_target_g?: number
           created_at?: string
+          fat_target_g?: number
           goal_rate_lbs_per_week?: number
+          goal_rate_source?: string
           goal_weight_lbs?: number | null
           id?: number
           protein_target_g?: number
@@ -145,10 +253,43 @@ export type Database = {
         }
         Update: {
           calorie_target?: number
+          carb_target_g?: number
           created_at?: string
+          fat_target_g?: number
           goal_rate_lbs_per_week?: number
+          goal_rate_source?: string
           goal_weight_lbs?: number | null
           id?: number
+          protein_target_g?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      target_history: {
+        Row: {
+          calorie_target: number
+          carb_target_g: number
+          created_at: string
+          effective_date: string
+          fat_target_g: number
+          protein_target_g: number
+          updated_at: string
+        }
+        Insert: {
+          calorie_target: number
+          carb_target_g: number
+          created_at?: string
+          effective_date: string
+          fat_target_g: number
+          protein_target_g: number
+          updated_at?: string
+        }
+        Update: {
+          calorie_target?: number
+          carb_target_g?: number
+          created_at?: string
+          effective_date?: string
+          fat_target_g?: number
           protein_target_g?: number
           updated_at?: string
         }
@@ -221,7 +362,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      apply_targets: {
+        Args: {
+          p_action?: string
+          p_calorie_target: number
+          p_carb_target_g: number
+          p_effective_date: string
+          p_fat_target_g: number
+          p_goal_rate_lbs_per_week?: number
+          p_goal_rate_source?: string
+          p_goal_weight_lbs?: number
+          p_observed_tdee?: number
+          p_protein_target_g: number
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

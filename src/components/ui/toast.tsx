@@ -11,23 +11,28 @@ import { AnimatePresence, motion } from "motion/react";
 import { springs } from "@/lib/motion";
 
 /**
- * One quiet pill above the tab bar. Used for failure rollback messages —
- * success is never announced with a toast (the UI already moved).
+ * One quiet pill above the tab bar. Failure rollbacks mostly; an optional
+ * action turns it into the 5-second Undo after a delete. Success is never
+ * announced — the UI already moved.
  */
-const ToastContext = createContext<{ show: (message: string) => void } | null>(
-  null,
-);
+type ToastAction = { label: string; onPress: () => void };
+
+const ToastContext = createContext<{
+  show: (message: string, action?: ToastAction) => void;
+} | null>(null);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toast, setToast] = useState<{ id: number; message: string } | null>(
-    null,
-  );
+  const [toast, setToast] = useState<{
+    id: number;
+    message: string;
+    action?: ToastAction;
+  } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = useCallback((message: string) => {
-    setToast({ id: Date.now(), message });
+  const show = useCallback((message: string, action?: ToastAction) => {
+    setToast({ id: Date.now(), message, action });
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 3000);
+    timer.current = setTimeout(() => setToast(null), action ? 5000 : 3000);
   }, []);
 
   return (
@@ -42,9 +47,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97 }}
               transition={springs.default}
-              className="type-footnote rounded-full border border-border-default bg-overlay px-4 py-2.5 text-text-secondary"
+              className="pointer-events-auto flex items-center gap-3 rounded-full border border-border-default bg-overlay px-4 py-2.5"
             >
-              {toast.message}
+              <span className="type-footnote text-text-secondary">
+                {toast.message}
+              </span>
+              {toast.action && (
+                <button
+                  type="button"
+                  className="type-footnote font-semibold text-text-primary"
+                  onClick={() => {
+                    toast.action?.onPress();
+                    setToast(null);
+                  }}
+                >
+                  {toast.action.label}
+                </button>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

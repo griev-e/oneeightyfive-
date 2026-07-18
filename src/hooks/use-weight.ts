@@ -1,22 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchJson, jsonBody } from "./fetch-json";
 import { useToast } from "@/components/ui/toast";
 import type { WeighIn } from "@/lib/stats";
-
-/**
- * All data flows through /api/* (PIN-gated, server-side Supabase). A 401
- * means the unlock cookie expired or PIN_LOCK rotated — bounce to /lock.
- */
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (res.status === 401) {
-    window.location.replace("/lock");
-    throw new Error("locked");
-  }
-  if (!res.ok) throw new Error(`${url} → ${res.status}`);
-  return res.json() as Promise<T>;
-}
 
 export function useWeighIns() {
   return useQuery({
@@ -31,11 +18,7 @@ export function useLogWeight() {
   const toast = useToast();
   return useMutation({
     mutationFn: (w: WeighIn) =>
-      fetchJson<WeighIn>("/api/weight", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(w),
-      }),
+      fetchJson<WeighIn>("/api/weight", { method: "PUT", ...jsonBody(w) }),
     onMutate: async (w) => {
       await qc.cancelQueries({ queryKey: ["weigh-ins"] });
       const prev = qc.getQueryData<WeighIn[]>(["weigh-ins"]);

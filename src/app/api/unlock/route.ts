@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { UNLOCK_COOKIE, safeEqual, unlockToken } from "@/lib/auth";
+import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   const expected = process.env.PIN_LOCK;
@@ -16,7 +17,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  const res = NextResponse.json({ ok: true });
+  // greet the profile by name on later locks; never fail the unlock over it
+  let name = "kevin";
+  try {
+    const { data } = await supabaseServer()
+      .from("profile")
+      .select("name")
+      .eq("id", 1)
+      .single();
+    if (data?.name) name = data.name;
+  } catch {
+    // Supabase not configured yet — the default name is fine
+  }
+
+  const res = NextResponse.json({ ok: true, name });
   res.cookies.set(UNLOCK_COOKIE, await unlockToken(expected), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

@@ -74,3 +74,64 @@ export function computePace(
 export function e1rm(weightLbs: number, reps: number): number {
   return weightLbs * (1 + Math.min(reps, 12) / 30);
 }
+
+/**
+ * All-time records for one exercise. Weighted lifts race maxWeight/maxE1rm;
+ * bodyweight lifts (weight 0) race maxReps — they must be able to PR too.
+ * null records = first-ever session: everything is baseline, nothing fires.
+ */
+export type ExerciseRecords = {
+  maxWeightLbs: number;
+  maxE1rm: number;
+  maxRepsAtBodyweight: number;
+};
+
+export type SetInput = { weightLbs: number; reps: number };
+
+export type SetFlag = "none" | "overload" | "pr";
+
+/** Fold already-logged sets from today into records so a repeat isn't a second PR. */
+export function foldRecords(
+  records: ExerciseRecords,
+  todaySets: SetInput[],
+): ExerciseRecords {
+  let { maxWeightLbs, maxE1rm, maxRepsAtBodyweight } = records;
+  for (const s of todaySets) {
+    if (s.weightLbs > 0) {
+      maxWeightLbs = Math.max(maxWeightLbs, s.weightLbs);
+      maxE1rm = Math.max(maxE1rm, e1rm(s.weightLbs, s.reps));
+    } else {
+      maxRepsAtBodyweight = Math.max(maxRepsAtBodyweight, s.reps);
+    }
+  }
+  return { maxWeightLbs, maxE1rm, maxRepsAtBodyweight };
+}
+
+/**
+ * Celebration tier for a set, derived at render time — never stored, so
+ * edits and deletes self-heal. PR is judged against ALL-TIME records
+ * (server records + today's earlier sets); overload against the positional
+ * ghost from last session, on estimated 1RM — 105×3 does not beat 100×10.
+ */
+export function classifySet(
+  set: SetInput,
+  serverRecords: ExerciseRecords | null,
+  todayEarlierSets: SetInput[],
+  ghost: SetInput | null,
+): SetFlag {
+  // first-ever session: baselines set silently, whole day stays quiet
+  if (serverRecords === null) return "none";
+  const records = foldRecords(serverRecords, todayEarlierSets);
+  const isPr =
+    set.weightLbs > 0
+      ? set.weightLbs > records.maxWeightLbs ||
+        e1rm(set.weightLbs, set.reps) > records.maxE1rm
+      : set.reps > records.maxRepsAtBodyweight;
+  if (isPr) return "pr";
+  if (!ghost) return "none";
+  const beatsGhost =
+    set.weightLbs > 0 || ghost.weightLbs > 0
+      ? e1rm(set.weightLbs, set.reps) > e1rm(ghost.weightLbs, ghost.reps)
+      : set.reps > ghost.reps;
+  return beatsGhost ? "overload" : "none";
+}

@@ -23,6 +23,19 @@
   --color-pr: #e8b84b;
   --color-pr-tint: rgb(232 184 75 / 0.12);
   --color-destructive: rgb(248 113 113 / 0.7);
+  --color-destructive-tint: rgb(248 113 113 / 0.1);
+  --color-destructive-border: rgb(248 113 113 / 0.22);
+
+  /* ---- macros. Identity colors — never used for "hit" (mint owns that). ---- */
+  --color-protein: #a78bfa;
+  --color-protein-tint: rgb(167 139 250 / 0.12);
+  --color-protein-border: rgb(167 139 250 / 0.28);
+  --color-carbs: #0ea5e9;
+  --color-carbs-tint: rgb(14 165 233 / 0.12);
+  --color-carbs-border: rgb(14 165 233 / 0.28);
+  --color-fat: #f472b6;
+  --color-fat-tint: rgb(244 114 182 / 0.12);
+  --color-fat-border: rgb(244 114 182 / 0.28);
 
   /* ---- radius ---- */
   --radius-sm: 8px;

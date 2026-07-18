@@ -34,7 +34,9 @@ SUPABASE_SECRET_KEY=…  # Supabase dashboard → Settings → API keys (secret)
 
 ## Status
 
-M1 (shell + design system) and M2 (PIN lock, Supabase, live weight tracking)
-are done. Nutrition, workouts, and streaks still run on mock data until
-M3–M5. Conventions, data model, and the milestone plan live in
-[CLAUDE.md](./CLAUDE.md).
+M1 (shell + design system), M2 (PIN lock, Supabase, live weight tracking), and
+M3 (onboarding questionnaire + plan engine, live nutrition with full macros,
+live workout logging with PR/overload detection, real streaks) are done. Mock
+data is gone — every number in the app is yours. M4 (recalibration UI, iPad
+two-pane, service worker) and M5 (dashboard polish) remain. Conventions, data
+model, and the milestone plan live in [CLAUDE.md](./CLAUDE.md).
