@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronLeft, Search } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
@@ -8,18 +8,28 @@ import { Button } from "@/components/ui/button";
 import { ListRow } from "@/components/ui/list-row";
 import { MacroFields, type MacroValues } from "./macro-fields";
 import {
+  BarcodeCapture,
+  DescriptionCapture,
+  FoodInputActions,
+  ImageCapture,
+  type CaptureMode,
+} from "./food-capture";
+import {
   useCreateMeal,
   useFoodSuggestions,
   useLogFood,
   useLogFoods,
   useMeals,
 } from "@/hooks/use-food";
+import { useCatalogSearch } from "@/hooks/use-food-capture";
 import { cn } from "@/lib/cn";
 import {
   foodKey,
   scaleFood,
   type FoodSuggestion,
 } from "@/lib/food-suggestions";
+import type { AnalyzedFood } from "@/lib/food-ai";
+import type { CatalogFood } from "@/lib/food-catalog";
 import { formatInt } from "@/lib/format";
 import { springs } from "@/lib/motion";
 
@@ -30,6 +40,55 @@ const PORTIONS = [
   { value: 1.5, label: "1½×" },
   { value: 2, label: "2×" },
 ] as const;
+
+type FoodChoice = FoodSuggestion & {
+  servingLabel?: string;
+  detail?: string;
+};
+
+type SheetView = "browse" | "custom" | CaptureMode;
+
+function useDebouncedValue(value: string, delay: number): string {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timeout);
+  }, [delay, value]);
+  return debounced;
+}
+
+function catalogChoice(food: CatalogFood): FoodChoice {
+  return {
+    key: `catalog:${food.id}`,
+    name: food.brand ? `${food.name} · ${food.brand}` : food.name,
+    calories: food.calories,
+    proteinG: food.proteinG,
+    carbsG: food.carbsG,
+    fatG: food.fatG,
+    mealId: null,
+    lastUsedDate: "",
+    servingLabel: food.servingLabel,
+    detail:
+      food.source === "usda"
+        ? "USDA FoodData Central"
+        : "Open Food Facts",
+  };
+}
+
+function analysisChoice(food: AnalyzedFood): FoodChoice {
+  return {
+    key: `estimate:${crypto.randomUUID()}`,
+    name: food.name,
+    calories: food.calories,
+    proteinG: food.proteinG,
+    carbsG: food.carbsG,
+    fatG: food.fatG,
+    mealId: null,
+    lastUsedDate: "",
+    servingLabel: food.servingLabel,
+    detail: `${food.confidence} confidence${food.notes ? ` · ${food.notes}` : ""}`,
+  };
+}
 
 /**
  * One add surface: personal predictions and history first, portions second,
@@ -45,8 +104,8 @@ export function EntrySheet({
   onOpenChange: (open: boolean) => void;
   date: string;
 }) {
-  const [view, setView] = useState<"browse" | "custom">("browse");
-  const [selected, setSelected] = useState<FoodSuggestion | null>(null);
+  const [view, setView] = useState<SheetView>("browse");
+  const [selected, setSelected] = useState<FoodChoice | null>(null);
   const [portion, setPortion] = useState(1);
   const [query, setQuery] = useState("");
   const [values, setValues] = useState<MacroValues>(EMPTY);
@@ -55,6 +114,12 @@ export function EntrySheet({
   const [nameNudge, setNameNudge] = useState(false);
   const { data: predictionData } = useFoodSuggestions(date);
   const { data: meals = [] } = useMeals();
+  const catalogQuery = useDebouncedValue(
+    query.trim().toLocaleLowerCase("en-US"),
+    350,
+  );
+  const { data: catalogData, isFetching: catalogLoading } =
+    useCatalogSearch(catalogQuery);
   const logFood = useLogFood(date);
   const copyDay = useLogFoods(date);
   const createMeal = useCreateMeal();
@@ -71,7 +136,7 @@ export function EntrySheet({
   };
 
   const choices = useMemo(() => {
-    const unique = new Map<string, FoodSuggestion>();
+    const unique = new Map<string, FoodChoice>();
     for (const suggestion of predictionData?.suggestions ?? []) {
       unique.set(suggestion.key, suggestion);
     }
@@ -94,12 +159,18 @@ export function EntrySheet({
 
   const filteredChoices = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("en-US");
-    return normalized
-      ? choices.filter((choice) =>
-          choice.name.toLocaleLowerCase("en-US").includes(normalized),
-        )
-      : choices;
-  }, [choices, query]);
+    if (!normalized) return choices;
+    const local = choices.filter((choice) =>
+      choice.name.toLocaleLowerCase("en-US").includes(normalized),
+    );
+    const remote =
+      catalogQuery === normalized
+        ? (catalogData?.foods ?? []).map(catalogChoice)
+        : [];
+    const unique = new Map<string, FoodChoice>();
+    for (const choice of [...local, ...remote]) unique.set(choice.key, choice);
+    return [...unique.values()];
+  }, [catalogData?.foods, catalogQuery, choices, query]);
 
   const yesterday = predictionData?.yesterday ?? [];
   const yesterdayCalories = yesterday.reduce(
@@ -166,8 +237,15 @@ export function EntrySheet({
             </button>
             <div className="type-title">{selected.name}</div>
             <div className="type-footnote mt-1 text-text-tertiary">
-              Choose how much you had
+              {selected.servingLabel
+                ? `Nutrition per ${selected.servingLabel}`
+                : "Choose how much you had"}
             </div>
+            {selected.detail && (
+              <div className="type-footnote mt-2 text-text-secondary">
+                {selected.detail}
+              </div>
+            )}
 
             <div className="mt-5 grid grid-cols-4 gap-2">
               {PORTIONS.map((item) => (
@@ -208,6 +286,63 @@ export function EntrySheet({
             >
               Log {formatInt(scaleFood(selected, portion).calories)} cal
             </Button>
+            <Button
+              variant="ghost"
+              className="mt-1 w-full"
+              onClick={() => {
+                const food = scaleFood(selected, portion);
+                setName(food.name);
+                setValues({
+                  calories: food.calories,
+                  proteinG: food.proteinG,
+                  carbsG: food.carbsG,
+                  fatG: food.fatG,
+                });
+                setSelected(null);
+                setView("custom");
+              }}
+            >
+              Edit macros
+            </Button>
+          </motion.div>
+        ) : view !== "browse" && view !== "custom" ? (
+          <motion.div
+            key={view}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={springs.default}
+            className="px-4 pt-3 pb-2"
+          >
+            <button
+              type="button"
+              aria-label="Back to add food"
+              className="mb-1 flex size-11 items-center justify-center rounded-md text-text-secondary"
+              onClick={() => setView("browse")}
+            >
+              <ChevronLeft size={20} strokeWidth={1.75} />
+            </button>
+            <div className="type-title mb-4">
+              {view === "barcode"
+                ? "Scan barcode"
+                : view === "label"
+                  ? "Scan nutrition label"
+                  : view === "meal-photo"
+                    ? "Estimate meal photo"
+                    : "Describe your food"}
+            </div>
+            {view === "barcode" ? (
+              <BarcodeCapture onFood={(food) => setSelected(catalogChoice(food))} />
+            ) : view === "description" ? (
+              <DescriptionCapture
+                onFood={(food) => setSelected(analysisChoice(food))}
+              />
+            ) : (
+              <ImageCapture
+                mode={view}
+                onFood={(food) => setSelected(analysisChoice(food))}
+              />
+            )}
           </motion.div>
         ) : view === "custom" ? (
           <motion.div
@@ -301,10 +436,14 @@ export function EntrySheet({
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search your foods"
+                placeholder="Search foods and brands"
                 className="type-body min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary"
               />
             </label>
+
+            {query.length === 0 && (
+              <FoodInputActions onSelect={(mode) => setView(mode)} />
+            )}
 
             {query.length === 0 && yesterday.length > 0 && (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-raised p-3">
@@ -330,24 +469,39 @@ export function EntrySheet({
             )}
 
             <div className="type-label mt-5 mb-2 text-text-tertiary">
-              {query ? "Results" : "Suggested"}
+              {query
+                ? catalogLoading
+                  ? "Searching"
+                  : "Results"
+                : "Suggested"}
             </div>
             {filteredChoices.length > 0 ? (
-              <div className="max-h-72 divide-y divide-border-subtle overflow-y-auto overscroll-contain">
-                {filteredChoices.map((choice) => (
-                  <ListRow
-                    key={choice.key}
-                    title={choice.name}
-                    subtitle={`${choice.proteinG} g protein`}
-                    trailing={
-                      <span className="type-body tabular-nums text-text-secondary">
-                        {formatInt(choice.calories)}
-                      </span>
-                    }
-                    onClick={() => setSelected(choice)}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="max-h-72 divide-y divide-border-subtle overflow-y-auto overscroll-contain">
+                  {filteredChoices.map((choice) => (
+                    <ListRow
+                      key={choice.key}
+                      title={choice.name}
+                      subtitle={
+                        choice.servingLabel
+                          ? `${choice.servingLabel} · ${choice.proteinG} g protein`
+                          : `${choice.proteinG} g protein`
+                      }
+                      trailing={
+                        <span className="type-body tabular-nums text-text-secondary">
+                          {formatInt(choice.calories)}
+                        </span>
+                      }
+                      onClick={() => setSelected(choice)}
+                    />
+                  ))}
+                </div>
+                {query && (catalogData?.foods.length ?? 0) > 0 && (
+                  <p className="type-footnote mt-2 text-text-tertiary">
+                    Nutrition data from Open Food Facts and USDA FoodData Central
+                  </p>
+                )}
+              </>
             ) : (
               <p className="type-body py-6 text-center text-text-tertiary">
                 {query ? "No matching foods yet" : "Your suggestions will learn as you log"}
