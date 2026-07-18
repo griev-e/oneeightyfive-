@@ -43,9 +43,24 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
   const carbs = logs.reduce((s, l) => s + l.carbsG, 0);
   const fat = logs.reduce((s, l) => s + l.fatG, 0);
   const surplusHit = calories >= settings.calorieTarget;
+  const suggestions = (predictionData?.suggestions ?? []).map((suggestion) => {
+    const saved = suggestion.mealId
+      ? meals.find((meal) => meal.id === suggestion.mealId)
+      : null;
+    return saved
+      ? {
+          ...suggestion,
+          name: saved.name,
+          calories: saved.calories,
+          proteinG: saved.proteinG,
+          carbsG: saved.carbsG,
+          fatG: saved.fatG,
+        }
+      : suggestion;
+  });
   const quickAdds =
-    predictionData?.suggestions.length
-      ? predictionData.suggestions.slice(0, 5)
+    suggestions.length
+      ? suggestions.slice(0, 5)
       : meals.slice(0, 5);
 
   const fmtTime = (iso: string) =>

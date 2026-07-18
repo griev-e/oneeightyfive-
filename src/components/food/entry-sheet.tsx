@@ -77,18 +77,17 @@ export function EntrySheet({
     }
     for (const meal of meals) {
       const key = foodKey({ name: meal.name, mealId: meal.id });
-      if (!unique.has(key)) {
-        unique.set(key, {
-          key,
-          name: meal.name,
-          calories: meal.calories,
-          proteinG: meal.proteinG,
-          carbsG: meal.carbsG,
-          fatG: meal.fatG,
-          mealId: meal.id,
-          lastUsedDate: "",
-        });
-      }
+      // An edited saved meal is newer truth than its historical log snapshot.
+      unique.set(key, {
+        key,
+        name: meal.name,
+        calories: meal.calories,
+        proteinG: meal.proteinG,
+        carbsG: meal.carbsG,
+        fatG: meal.fatG,
+        mealId: meal.id,
+        lastUsedDate: "",
+      });
     }
     return [...unique.values()];
   }, [meals, predictionData?.suggestions]);
