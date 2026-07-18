@@ -183,18 +183,19 @@ a,
 /* ---- layout helpers ---- */
 @utility app-shell {
   /*
-   * iOS standalone (home-screen) PWAs are unreliable about CSS viewport height:
-   * 100vh/100dvh AND a bare fixed inset:0 all resolve SHORTER than the real
-   * screen, leaving dead space at the bottom (where Safari's URL bar sits in
-   * browser mode). The only value iOS gets right is the JS-measured
-   * window.innerHeight, published as --app-height by the inline script in the
-   * root layout (kept current on resize/orientation). We pin the shell to that;
-   * on a fixed box the explicit height wins over bottom:0 and fills top→bottom.
-   * 100dvh is only the pre-hydration / no-JS fallback.
+   * The iOS standalone bottom-gap bug, finally pinned down. With
+   * black-translucent + viewport-fit=cover, iOS resolves the viewport SHORT by
+   * the TOP safe-area inset: 100vh / 100dvh / 100% / a bare fixed inset:0 all
+   * report a screen that's missing ~status-bar height, and that shortfall shows
+   * up as dead space at the BOTTOM. Earlier passes kept swapping the base unit
+   * (vh → dvh → inset:0 → JS innerHeight) but none of them ADDED the missing
+   * inset back — so the gap never moved. The fix is to extend the fixed shell
+   * down by env(safe-area-inset-top) so it reaches the true screen bottom. Off
+   * iOS the inset is 0, so this is a plain 100dvh — no regression anywhere.
    */
   position: fixed;
   inset: 0;
-  height: var(--app-height, 100dvh);
+  height: calc(100dvh + env(safe-area-inset-top));
   min-height: 0;
   overflow: hidden;
 }
