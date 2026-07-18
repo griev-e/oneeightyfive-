@@ -61,7 +61,7 @@ function Gallery() {
   const [seg, setSeg] = useState<"1w" | "1m" | "all">("1m");
 
   return (
-    <div className="mx-auto max-w-xl px-5 pt-[calc(env(safe-area-inset-top)+24px)] pb-24">
+    <div className="mx-auto h-[100dvh] max-w-xl overflow-y-auto overscroll-contain px-5 pt-[calc(env(safe-area-inset-top)+24px)] pb-[max(env(safe-area-inset-bottom),6rem)]">
       <div className="type-label text-text-tertiary">Surplus</div>
       <h1 className="type-title mt-1 mb-8">Design system</h1>
 

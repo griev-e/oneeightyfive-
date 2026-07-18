@@ -71,8 +71,8 @@ export function PlanReveal({
         : `On pace to pass your goal around ${formatShortDate(plan.projection.projectedDate)}, ${new Date(plan.projection.projectedDate).getFullYear()}.`;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto overscroll-contain px-screen pb-6 pt-6">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-screen pb-6 pt-6">
         <div className="mx-auto max-w-2xl">
           <motion.div {...rise(0)} className="type-label text-text-tertiary">
             Your plan

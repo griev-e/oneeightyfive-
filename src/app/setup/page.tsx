@@ -242,7 +242,7 @@ function Flow() {
 
   if (revealing && plan) {
     return (
-      <main className="fixed inset-0 flex flex-col bg-canvas">
+      <main className="app-shell flex flex-col bg-canvas">
         <Header
           progress={1}
           onBack={goBack}
@@ -261,7 +261,7 @@ function Flow() {
 
   const id = STEPS[step];
   return (
-    <main className="fixed inset-0 flex flex-col bg-canvas">
+    <main className="app-shell flex flex-col bg-canvas">
       <Header
         progress={(step + 1) / (STEPS.length + 1)}
         onBack={goBack}
@@ -275,7 +275,7 @@ function Flow() {
             : null
         }
       />
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <AnimatePresence mode="popLayout" initial={false} custom={direction}>
           <motion.div
             key={id}
@@ -283,7 +283,7 @@ function Flow() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0 } }}
             transition={springs.sheet}
-            className="absolute inset-0 overflow-y-auto overscroll-contain px-screen pb-8"
+            className="absolute inset-0 overflow-y-auto overscroll-contain px-screen pb-[max(env(safe-area-inset-bottom),2rem)]"
           >
             <div className="mx-auto max-w-2xl pt-4">
               <Step

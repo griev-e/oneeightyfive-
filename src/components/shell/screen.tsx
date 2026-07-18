@@ -25,10 +25,10 @@ export function Screen({
   className?: string;
 }) {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div
         className={cn(
-          "flex-1 overflow-y-auto overscroll-contain px-screen",
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain px-screen",
           footer ? "pb-6" : "pb-tab-clearance",
           "pt-[calc(env(safe-area-inset-top)+20px)]",
           className,

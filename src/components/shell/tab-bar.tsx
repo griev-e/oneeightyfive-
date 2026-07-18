@@ -37,7 +37,7 @@ export function TabBar({
             transition={springs.instant}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex h-14 flex-1 flex-col items-center justify-center gap-0.5",
+              "flex h-tab-bar flex-1 flex-col items-center justify-center gap-0.5",
               "transition-colors duration-150 lg:h-16 lg:flex-none",
               isActive ? "text-text-primary" : "text-text-tertiary",
             )}

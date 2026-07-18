@@ -79,49 +79,49 @@ export function TabShell({ initialTab }: { initialTab: TabId }) {
 
   if (profile === undefined || needsSetup) {
     // canvas only — visually identical to the splash
-    return <div className="fixed inset-0 bg-canvas" />;
+    return <div className="app-shell bg-canvas" />;
   }
 
   return (
     <TabSwitchContext.Provider value={switchTab}>
-      <div className="fixed inset-0 flex flex-col lg:flex-row">
+      <div className="app-shell flex flex-col lg:flex-row">
         <TabBar active={active} onSelect={switchTab} />
-      <div className="relative flex-1 overflow-hidden lg:order-last">
-        {TABS.map(({ id }) => {
-          const Panel = PANELS[id];
-          const isActive = id === active;
-          return (
-            <motion.div
-              key={id}
-              className="absolute inset-0 bg-canvas"
-              initial={false}
-              animate={
-                isActive
-                  ? {
-                      opacity: 1,
-                      visibility: "visible",
-                      zIndex: 2,
-                      transition: {
-                        visibility: { duration: 0 },
-                        opacity: { duration: 0.12, ease: "linear" },
-                      },
-                    }
-                  : {
-                      opacity: 0,
-                      visibility: "hidden",
-                      zIndex: 1,
-                      transition: {
-                        opacity: { duration: 0, delay: 0.15 },
-                        visibility: { delay: 0.15 },
-                      },
-                    }
-              }
-              inert={!isActive}
-            >
-              <Panel isActive={isActive} />
-            </motion.div>
-          );
-        })}
+        <div className="relative min-h-0 flex-1 overflow-hidden lg:order-last">
+          {TABS.map(({ id }) => {
+            const Panel = PANELS[id];
+            const isActive = id === active;
+            return (
+              <motion.div
+                key={id}
+                className="absolute inset-0 min-h-0 bg-canvas"
+                initial={false}
+                animate={
+                  isActive
+                    ? {
+                        opacity: 1,
+                        visibility: "visible",
+                        zIndex: 2,
+                        transition: {
+                          visibility: { duration: 0 },
+                          opacity: { duration: 0.12, ease: "linear" },
+                        },
+                      }
+                    : {
+                        opacity: 0,
+                        visibility: "hidden",
+                        zIndex: 1,
+                        transition: {
+                          opacity: { duration: 0, delay: 0.15 },
+                          visibility: { delay: 0.15 },
+                        },
+                      }
+                }
+                inert={!isActive}
+              >
+                <Panel isActive={isActive} />
+              </motion.div>
+            );
+          })}
         </div>
       </div>
       <OfflineIndicator />
