@@ -30,8 +30,9 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // PWA chrome (manifest, icons, splash) stays public so install works
+  // PWA chrome (manifest, icons, splash, service worker) stays public so
+  // install + offline launch work
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.png|icons/|splash/|manifest.webmanifest).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.png|icons/|splash/|manifest.webmanifest|sw.js).*)",
   ],
 };

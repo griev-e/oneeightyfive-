@@ -76,6 +76,14 @@ export function e1rm(weightLbs: number, reps: number): number {
 }
 
 /**
+ * Session tonnage: Σ weight × reps. Bodyweight sets (weight 0) contribute
+ * nothing to load — the volume chip falls back to a set count for those.
+ */
+export function sessionVolume(sets: SetInput[]): number {
+  return sets.reduce((sum, s) => sum + s.weightLbs * s.reps, 0);
+}
+
+/**
  * All-time records for one exercise. Weighted lifts race maxWeight/maxE1rm;
  * bodyweight lifts (weight 0) race maxReps — they must be able to PR too.
  * null records = first-ever session: everything is baseline, nothing fires.

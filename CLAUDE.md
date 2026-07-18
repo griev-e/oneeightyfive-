@@ -161,8 +161,13 @@ enter-only fades/reveals).
 - Projection = weekly simulation with tier taper; goal ≤ current weight puts
   the plan in maintenance mode instead of bricking. 23 vitest tests pin the
   numbers (`src/lib/__tests__/`) — run `npx vitest run` after touching math.
-- Recalibration UI ("your real TDEE looks like X — apply?") is deferred to
-  M4; the math and `plan_events` schema already support it.
+- Recalibration UI ("your real TDEE looks like X — apply?") lives on Today
+  (`components/today/recalibration-card.tsx`): `GET /api/recalibration`
+  reruns `buildPlan` server-side with the observed blend and returns a
+  suggestion; the cadence gate is pure in `lib/recalibration.ts` (≥100 kcal
+  delta, 14-day cooldown after any `plan_event`). Apply goes through the same
+  `apply_targets` RPC (`action='applied'`, `observed_tdee` recorded); "Not
+  now" posts a `dismissed` event — both restart the clock.
 
 ## Auth invariants
 
@@ -208,8 +213,12 @@ enter-only fades/reveals).
   logging (ghost prefill, PR/overload tiers, first-session baselines,
   edit/archive), real streaks vs `target_history`, `plan_events` +
   recalibration math (UI in M4), 23 unit tests. ← *awaiting user approval*
-- [ ] **M4 — Workout polish + recalibration UI** (inline exercise create in
-  picker, session volume chip, "your real TDEE" recalibration card, iPad
-  two-pane, minimal service worker for gym connectivity)
+- [x] **M4 — Workout polish + recalibration UI**: searchable exercise picker
+  with inline create (type-to-create, no separate sheet), today's session
+  volume chip on Lift + per-exercise chip in the detail, "your real TDEE"
+  recalibration card on Today (`/api/recalibration` + `lib/recalibration.ts`
+  cadence), iPad two-pane lift list/detail, minimal gym-connectivity service
+  worker (`public/sw.js`, shell + static only, never caches data). ←
+  *awaiting user approval*
 - [ ] **M5 — Dashboard/streaks + hardening** (streak sparkline, surplus
   celebration once/day, reduced-motion audit, offline polish)

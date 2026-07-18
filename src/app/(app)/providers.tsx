@@ -7,6 +7,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { get, set, del } from "idb-keyval";
 import { ToastProvider } from "@/components/ui/toast";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker";
 
 const noopSubscribe = () => () => {};
 
@@ -63,6 +64,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           }}
         >
           <ToastProvider>{children}</ToastProvider>
+          <ServiceWorkerRegister />
         </PersistQueryClientProvider>
       </ClientGate>
     </MotionConfig>
