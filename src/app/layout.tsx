@@ -45,6 +45,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // maximum-scale + user-scalable are part of the known-good combo that makes
+  // iOS standalone initialize a full-screen viewport from cold start (with the
+  // 100vh root in globals.css); without them the letterboxed viewport can
+  // stick, leaving an unpaintable strip at the bottom. Pinch-zoom was already
+  // effectively off (touch-action: manipulation) — this is an app, not a page.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#0A0A0B",
 };
