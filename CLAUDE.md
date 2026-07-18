@@ -220,5 +220,11 @@ enter-only fades/reveals).
   cadence), iPad two-pane lift list/detail, minimal gym-connectivity service
   worker (`public/sw.js`, shell + static only, never caches data). ←
   *awaiting user approval*
-- [ ] **M5 — Dashboard/streaks + hardening** (streak sparkline, surplus
-  celebration once/day, reduced-motion audit, offline polish)
+- [x] **M5 — Dashboard/streaks + hardening**: streak sparkline on Today
+  (`charts/streak-rail.tsx` + pure `streakSeries` in `lib/streaks.ts`, mint =
+  target-hit day), once-a-day surplus celebration (`today/surplus-celebration
+  .tsx`, body-portaled so it shows over any tab, localStorage-guarded per
+  app-day, degrades under reduced motion), reduced-motion audit (rail +
+  celebration + offline pill all honor `useReducedMotion`), offline polish
+  (`use-online-status` + shell `OfflineIndicator` pill; SW already shells the
+  app for gym Wi-Fi). ← *awaiting user approval*

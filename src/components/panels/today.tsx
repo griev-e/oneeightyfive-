@@ -9,7 +9,9 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { MacroGrid } from "@/components/ui/macro-grid";
 import { Card, PressableCard } from "@/components/ui/card";
 import { RecalibrationCard } from "@/components/today/recalibration-card";
+import { SurplusCelebration } from "@/components/today/surplus-celebration";
 import { Sparkline } from "@/components/charts/sparkline";
+import { StreakRail } from "@/components/charts/streak-rail";
 import { useFoodLogs } from "@/hooks/use-food";
 import { useSets } from "@/hooks/use-workouts";
 import { useWeighIns } from "@/hooks/use-weight";
@@ -18,7 +20,7 @@ import { useProfile } from "@/hooks/use-profile";
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useAppDate } from "@/hooks/use-app-date";
 import { computePace, rollingAverage } from "@/lib/stats";
-import { computeStreak } from "@/lib/streaks";
+import { computeStreak, streakSeries } from "@/lib/streaks";
 import { formatFullDate } from "@/lib/dates";
 import { formatInt, formatPace, formatWeight } from "@/lib/format";
 import { springs } from "@/lib/motion";
@@ -46,6 +48,18 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
   const streak = useMemo(
     () =>
       computeStreak(
+        summaries.days,
+        summaries.targets,
+        date,
+        calories,
+        settings.calorieTarget,
+      ),
+    [summaries.days, summaries.targets, date, calories, settings.calorieTarget],
+  );
+
+  const streakRail = useMemo(
+    () =>
+      streakSeries(
         summaries.days,
         summaries.targets,
         date,
@@ -142,8 +156,34 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
         />
       </div>
 
+      {/* day streak — the flame plus its trailing 4-week sparkline */}
+      <PressableCard
+        onClick={() => switchTab("food")}
+        className="mt-10 p-5"
+      >
+        <div className="flex items-baseline justify-between">
+          <span className="type-label text-text-tertiary">Day streak</span>
+          <div className="flex items-baseline gap-1.5">
+            <AnimatedNumber
+              value={streak.count}
+              className={cn("type-stat", streak.todayHit && "text-accent")}
+            />
+            <span className="type-footnote text-text-tertiary">
+              {streak.count >= 366
+                ? "365+ days"
+                : streak.count === 1
+                  ? "day"
+                  : "days"}
+            </span>
+          </div>
+        </div>
+        <div className="mt-4">
+          <StreakRail series={streakRail} isActive={isActive} />
+        </div>
+      </PressableCard>
+
       {/* cards */}
-      <div className="mt-10 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <PressableCard onClick={() => switchTab("weight")} className="p-5">
           <div className="type-label mb-2 text-text-tertiary">Weight</div>
           <div className="flex items-baseline gap-1">
@@ -172,36 +212,19 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
           </div>
         </PressableCard>
 
-        <div className="grid grid-rows-2 gap-3">
-          <PressableCard onClick={() => switchTab("lift")} className="p-5">
-            <div className="type-label mb-1 text-text-tertiary">Lift</div>
-            <div className="type-headline">
-              {sets.length > 0 ? (
-                <>
-                  <AnimatedNumber value={sets.length} />{" "}
-                  {sets.length === 1 ? "set" : "sets"} logged
-                </>
-              ) : (
-                "No session yet"
-              )}
-            </div>
-          </PressableCard>
-
-          <PressableCard onClick={() => switchTab("food")} className="p-5">
-            <div className="type-label mb-1 text-text-tertiary">
-              Day streak
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <AnimatedNumber
-                value={streak.count}
-                className={cn("type-stat", streak.todayHit && "text-accent")}
-              />
-              <span className="type-footnote text-text-tertiary">
-                {streak.count >= 366 ? "365+ days" : "days"}
-              </span>
-            </div>
-          </PressableCard>
-        </div>
+        <PressableCard onClick={() => switchTab("lift")} className="p-5">
+          <div className="type-label mb-1 text-text-tertiary">Lift</div>
+          <div className="type-headline">
+            {sets.length > 0 ? (
+              <>
+                <AnimatedNumber value={sets.length} />{" "}
+                {sets.length === 1 ? "set" : "sets"} logged
+              </>
+            ) : (
+              "No session yet"
+            )}
+          </div>
+        </PressableCard>
       </div>
 
       {/* today's log, at a glance */}
@@ -238,6 +261,12 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
           </p>
         </Card>
       )}
+
+      <SurplusCelebration
+        hit={surplusHit}
+        date={date}
+        streakCount={streak.count}
+      />
     </Screen>
   );
 }

@@ -11,6 +11,7 @@ import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { TABS, type TabId } from "./tabs";
 import { TabBar } from "./tab-bar";
+import { OfflineIndicator } from "./offline-indicator";
 import { useProfile } from "@/hooks/use-profile";
 import { TodayPanel } from "@/components/panels/today";
 import { WeightPanel } from "@/components/panels/weight";
@@ -123,6 +124,7 @@ export function TabShell({ initialTab }: { initialTab: TabId }) {
         })}
         </div>
       </div>
+      <OfflineIndicator />
     </TabSwitchContext.Provider>
   );
 }
