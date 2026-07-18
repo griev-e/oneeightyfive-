@@ -103,8 +103,8 @@ export default function LockPage() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <main className="fixed inset-0 flex flex-col items-center bg-canvas">
-        <div className="flex flex-1 flex-col items-center justify-center gap-8">
+      <main className="app-shell flex flex-col items-center bg-canvas pt-[env(safe-area-inset-top)]">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8">
           <PlusMark />
           <div className="flex flex-col items-center gap-5">
             {name && (

@@ -53,6 +53,15 @@
   --tracking-label: 0.08em;
 
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* ---- app chrome ---- */
+  --spacing-tab-bar: 3.5rem;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
 }
 
 html {
@@ -61,6 +70,7 @@ html {
 }
 
 body {
+  min-height: 100dvh;
   background: var(--color-canvas);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -171,8 +181,31 @@ a,
 }
 
 /* ---- layout helpers ---- */
+@utility app-shell {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
 @utility pb-tab-clearance {
-  padding-bottom: calc(64px + env(safe-area-inset-bottom) + 16px);
+  padding-bottom: calc(
+    var(--spacing-tab-bar) + env(safe-area-inset-bottom) + 1rem
+  );
+  @media (min-width: 1024px) {
+    padding-bottom: 1.5rem;
+  }
+}
+
+@utility bottom-above-tab {
+  bottom: calc(
+    var(--spacing-tab-bar) + env(safe-area-inset-bottom) + 0.75rem
+  );
+  @media (min-width: 1024px) {
+    bottom: 0.75rem;
+  }
 }
 
 /* screen gutters that respect the notch in landscape */

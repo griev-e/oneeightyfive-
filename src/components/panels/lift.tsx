@@ -300,8 +300,8 @@ function ExerciseDetail({
       : reps > nextGhost.reps);
 
   return (
-    <div className="h-full overflow-y-auto overscroll-contain px-screen pb-tab-clearance">
-      <header className="mx-auto max-w-2xl pt-[calc(env(safe-area-inset-top)+12px)]">
+    <div className="h-full min-h-0 overflow-y-auto overscroll-contain px-screen pb-tab-clearance">
+      <header className="mx-auto max-w-2xl pt-[calc(env(safe-area-inset-top)+20px)]">
         <motion.button
           type="button"
           onClick={onBack}
