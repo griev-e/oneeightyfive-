@@ -60,8 +60,9 @@ async function searchOpenFoodFacts(query: string): Promise<CatalogFood[]> {
 }
 
 async function searchUsda(query: string): Promise<CatalogFood[]> {
-  const apiKey = process.env.USDA_API_KEY;
-  if (!apiKey) return [];
+  // USDA explicitly provides DEMO_KEY for low-volume evaluation. A personal
+  // key raises the limit, but search should still work on first launch.
+  const apiKey = process.env.USDA_API_KEY || "DEMO_KEY";
   const response = await fetch(
     `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(apiKey)}`,
     {

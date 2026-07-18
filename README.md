@@ -30,7 +30,7 @@ SUPABASE_URL=https://aqykznlpspuguvvoacpi.supabase.co
 SUPABASE_SECRET_KEY=…  # Supabase dashboard → Settings → API keys (secret)
 OPENAI_API_KEY=…       # label/photo/description/voice meal capture
 OPENAI_FOOD_MODEL=gpt-5.6-terra  # optional override
-USDA_API_KEY=…         # optional; adds generic USDA foods to universal search
+USDA_API_KEY=…         # optional; raises USDA search limits above DEMO_KEY
 ```
 
 Open Food Facts search and barcode lookup require no API key. All provider
