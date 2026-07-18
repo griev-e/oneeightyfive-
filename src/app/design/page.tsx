@@ -61,25 +61,24 @@ function Gallery() {
   const [seg, setSeg] = useState<"1w" | "1m" | "all">("1m");
 
   return (
-    <div className="app-shell overflow-y-auto overscroll-contain">
-      <div className="mx-auto max-w-xl px-5 pt-[calc(env(safe-area-inset-top)+24px)] pb-[max(env(safe-area-inset-bottom),6rem)]">
-        <div className="type-label text-text-tertiary">Surplus</div>
-        <h1 className="type-title mt-1 mb-8">Design system</h1>
+    <div className="mx-auto h-[100dvh] max-w-xl overflow-y-auto overscroll-contain px-5 pt-[calc(env(safe-area-inset-top)+24px)] pb-[max(env(safe-area-inset-bottom),6rem)]">
+      <div className="type-label text-text-tertiary">Surplus</div>
+      <h1 className="type-title mt-1 mb-8">Design system</h1>
 
-        <Section title="Color">
-          <div className="grid grid-cols-3 gap-3">
-            {COLORS.map(([name, cls]) => (
-              <div key={name}>
-                <div className={`h-14 rounded-md ${cls}`} />
-                <div className="type-footnote mt-1.5 text-text-tertiary">
-                  {name}
-                </div>
+      <Section title="Color">
+        <div className="grid grid-cols-3 gap-3">
+          {COLORS.map(([name, cls]) => (
+            <div key={name}>
+              <div className={`h-14 rounded-md ${cls}`} />
+              <div className="type-footnote mt-1.5 text-text-tertiary">
+                {name}
               </div>
-            ))}
-          </div>
-        </Section>
+            </div>
+          ))}
+        </div>
+      </Section>
 
-        <Section title="Type">
+      <Section title="Type">
         <div className="space-y-5">
           {TYPE_RAMP.map(([cls, sample]) => (
             <div key={cls} className="flex items-baseline justify-between gap-4">
@@ -90,9 +89,9 @@ function Gallery() {
             </div>
           ))}
         </div>
-        </Section>
+      </Section>
 
-        <Section title="Springs">
+      <Section title="Springs">
         <div className="space-y-3">
           {(
             Object.entries(springs) as [keyof typeof springs, object][]
@@ -100,9 +99,9 @@ function Gallery() {
             <SpringDemo key={name} name={name} />
           ))}
         </div>
-        </Section>
+      </Section>
 
-        <Section title="Animated number">
+      <Section title="Animated number">
         <Card className="flex flex-col items-center gap-4 p-6">
           <AnimatedNumber value={num} className="type-hero" />
           <div className="flex gap-2">
@@ -117,9 +116,9 @@ function Gallery() {
             </Button>
           </div>
         </Card>
-        </Section>
+      </Section>
 
-        <Section title="Progress">
+      <Section title="Progress">
         <Card className="flex flex-col items-center gap-5 p-6">
           <ProgressRing value={ring} size={156}>
             <AnimatedNumber
@@ -146,9 +145,9 @@ function Gallery() {
             ))}
           </div>
         </Card>
-        </Section>
+      </Section>
 
-        <Section title="Check + PR">
+      <Section title="Check + PR">
         <Card className="flex items-center justify-center gap-6 p-6">
           <button type="button" onClick={() => setChecked((c) => !c)}>
             <CheckDraw checked={checked} size={32} />
@@ -158,9 +157,9 @@ function Gallery() {
           </button>
           <PRBadge />
         </Card>
-        </Section>
+      </Section>
 
-        <Section title="Controls">
+      <Section title="Controls">
         <div className="space-y-4">
           <Segmented
             options={[
@@ -188,8 +187,7 @@ function Gallery() {
             <Skeleton className="h-14 w-2/3" />
           </div>
         </div>
-        </Section>
-      </div>
+      </Section>
     </div>
   );
 }
