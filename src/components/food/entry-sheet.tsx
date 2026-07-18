@@ -1,19 +1,40 @@
 "use client";
 
-import { useState } from "react";
-import { Check } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { Check, ChevronLeft, Search } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { ListRow } from "@/components/ui/list-row";
 import { MacroFields, type MacroValues } from "./macro-fields";
-import { useCreateMeal, useLogFood } from "@/hooks/use-food";
+import {
+  useCreateMeal,
+  useFoodSuggestions,
+  useLogFood,
+  useLogFoods,
+  useMeals,
+} from "@/hooks/use-food";
 import { cn } from "@/lib/cn";
+import {
+  foodKey,
+  scaleFood,
+  type FoodSuggestion,
+} from "@/lib/food-suggestions";
+import { formatInt } from "@/lib/format";
+import { springs } from "@/lib/motion";
 
 const EMPTY: MacroValues = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 };
+const PORTIONS = [
+  { value: 0.5, label: "½×" },
+  { value: 1, label: "1×" },
+  { value: 1.5, label: "1½×" },
+  { value: 2, label: "2×" },
+] as const;
 
 /**
- * Custom food entry. Calories-only stays a 2-tap path ("Log" enables at
- * cal ≥ 1); macros are optional; "Save as meal" turns tonight's dinner into
- * tomorrow's quick-add.
+ * One add surface: personal predictions and history first, portions second,
+ * manual entry last. It learns entirely from the user's own log, so repeated
+ * foods become zero-entry choices without an external nutrition database.
  */
 export function EntrySheet({
   open,
@@ -24,21 +45,75 @@ export function EntrySheet({
   onOpenChange: (open: boolean) => void;
   date: string;
 }) {
+  const [view, setView] = useState<"browse" | "custom">("browse");
+  const [selected, setSelected] = useState<FoodSuggestion | null>(null);
+  const [portion, setPortion] = useState(1);
+  const [query, setQuery] = useState("");
   const [values, setValues] = useState<MacroValues>(EMPTY);
   const [name, setName] = useState("");
   const [saveAsMeal, setSaveAsMeal] = useState(false);
   const [nameNudge, setNameNudge] = useState(false);
+  const { data: predictionData } = useFoodSuggestions(date);
+  const { data: meals = [] } = useMeals();
   const logFood = useLogFood(date);
+  const copyDay = useLogFoods(date);
   const createMeal = useCreateMeal();
 
   const reset = () => {
+    setView("browse");
+    setSelected(null);
+    setPortion(1);
+    setQuery("");
     setValues(EMPTY);
     setName("");
     setSaveAsMeal(false);
     setNameNudge(false);
   };
 
-  const submit = () => {
+  const choices = useMemo(() => {
+    const unique = new Map<string, FoodSuggestion>();
+    for (const suggestion of predictionData?.suggestions ?? []) {
+      unique.set(suggestion.key, suggestion);
+    }
+    for (const meal of meals) {
+      const key = foodKey({ name: meal.name, mealId: meal.id });
+      if (!unique.has(key)) {
+        unique.set(key, {
+          key,
+          name: meal.name,
+          calories: meal.calories,
+          proteinG: meal.proteinG,
+          carbsG: meal.carbsG,
+          fatG: meal.fatG,
+          mealId: meal.id,
+          lastUsedDate: "",
+        });
+      }
+    }
+    return [...unique.values()];
+  }, [meals, predictionData?.suggestions]);
+
+  const filteredChoices = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("en-US");
+    return normalized
+      ? choices.filter((choice) =>
+          choice.name.toLocaleLowerCase("en-US").includes(normalized),
+        )
+      : choices;
+  }, [choices, query]);
+
+  const yesterday = predictionData?.yesterday ?? [];
+  const yesterdayCalories = yesterday.reduce(
+    (sum, item) => sum + item.calories,
+    0,
+  );
+
+  const close = () => {
+    onOpenChange(false);
+    reset();
+  };
+
+  const submitCustom = () => {
     if (values.calories < 1) return;
     const trimmed = name.trim();
     if (saveAsMeal && !trimmed) {
@@ -57,8 +132,7 @@ export function EntrySheet({
     } else {
       logFood.mutate({ date, name: trimmed || "Quick add", ...values });
     }
-    onOpenChange(false);
-    reset();
+    close();
   };
 
   return (
@@ -70,57 +144,252 @@ export function EntrySheet({
       }}
       title="Add food"
     >
-      <div className="pt-4 pb-2">
-        <div className="px-4">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setNameNudge(false);
-            }}
-            placeholder="Name (optional)"
-            maxLength={80}
-            className={cn(
-              "type-body h-12 w-full rounded-md border bg-raised px-4 text-text-primary",
-              "placeholder:text-text-tertiary focus:border-border-strong",
-              "transition-colors duration-150",
-              nameNudge ? "border-border-strong" : "border-border-subtle",
-            )}
-          />
-        </div>
-        <div className="mt-3">
-          <MacroFields values={values} onChange={setValues} />
-        </div>
-        <button
-          type="button"
-          onClick={() => setSaveAsMeal((s) => !s)}
-          className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between"
-        >
-          <span className="type-body text-text-secondary">
-            Save as meal for quick-add
-          </span>
-          <span
-            className={cn(
-              "flex size-6 items-center justify-center rounded-md border transition-colors duration-150",
-              saveAsMeal
-                ? "border-border-strong bg-raised text-text-primary"
-                : "border-border-default text-transparent",
-            )}
+      <AnimatePresence mode="wait" initial={false}>
+        {selected ? (
+          <motion.div
+            key="portion"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={springs.default}
+            className="px-4 pt-3 pb-2"
           >
-            <Check size={14} strokeWidth={2.5} />
-          </span>
-        </button>
-        <div className="px-4">
-          <Button
-            className="mt-2 w-full"
-            disabled={values.calories < 1}
-            onClick={submit}
+            <button
+              type="button"
+              aria-label="Back to foods"
+              className="mb-1 flex size-11 items-center justify-center rounded-md text-text-secondary"
+              onClick={() => {
+                setSelected(null);
+                setPortion(1);
+              }}
+            >
+              <ChevronLeft size={20} strokeWidth={1.75} />
+            </button>
+            <div className="type-title">{selected.name}</div>
+            <div className="type-footnote mt-1 text-text-tertiary">
+              Choose how much you had
+            </div>
+
+            <div className="mt-5 grid grid-cols-4 gap-2">
+              {PORTIONS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  aria-pressed={portion === item.value}
+                  onClick={() => setPortion(item.value)}
+                  className={cn(
+                    "type-body h-11 rounded-md border bg-raised tabular-nums",
+                    portion === item.value
+                      ? "border-border-strong text-text-primary"
+                      : "border-border-subtle text-text-secondary",
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <MacroPreview food={scaleFood(selected, portion)} />
+
+            <Button
+              className="mt-5 w-full"
+              onClick={() => {
+                const food = scaleFood(selected, portion);
+                logFood.mutate({
+                  date,
+                  name: food.name,
+                  calories: food.calories,
+                  proteinG: food.proteinG,
+                  carbsG: food.carbsG,
+                  fatG: food.fatG,
+                  mealId: food.mealId,
+                });
+                close();
+              }}
+            >
+              Log {formatInt(scaleFood(selected, portion).calories)} cal
+            </Button>
+          </motion.div>
+        ) : view === "custom" ? (
+          <motion.div
+            key="custom"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={springs.default}
+            className="pt-3 pb-2"
           >
-            Log
-          </Button>
-        </div>
-      </div>
+            <div className="px-4">
+              <button
+                type="button"
+                aria-label="Back to foods"
+                className="mb-1 flex size-11 items-center justify-center rounded-md text-text-secondary"
+                onClick={() => setView("browse")}
+              >
+                <ChevronLeft size={20} strokeWidth={1.75} />
+              </button>
+              <div className="type-title mb-4">Enter manually</div>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setNameNudge(false);
+                }}
+                placeholder="Name (optional)"
+                maxLength={80}
+                className={cn(
+                  "type-body h-12 w-full rounded-md border bg-raised px-4 text-text-primary",
+                  "placeholder:text-text-tertiary focus:border-border-strong",
+                  "transition-colors duration-150",
+                  nameNudge ? "border-border-strong" : "border-border-subtle",
+                )}
+              />
+            </div>
+            <div className="mt-3">
+              <MacroFields values={values} onChange={setValues} />
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaveAsMeal((saved) => !saved)}
+              className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between"
+            >
+              <span className="type-body text-text-secondary">
+                Save for quick-add
+              </span>
+              <span
+                className={cn(
+                  "flex size-6 items-center justify-center rounded-md border transition-colors duration-150",
+                  saveAsMeal
+                    ? "border-border-strong bg-raised text-text-primary"
+                    : "border-border-default text-transparent",
+                )}
+              >
+                <Check size={14} strokeWidth={2.5} />
+              </span>
+            </button>
+            <div className="px-4">
+              <Button
+                className="mt-2 w-full"
+                disabled={values.calories < 1}
+                onClick={submitCustom}
+              >
+                Log
+              </Button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="browse"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={springs.default}
+            className="px-4 pt-4 pb-2"
+          >
+            <div className="type-title">Add food</div>
+            <div className="type-footnote mt-1 text-text-tertiary">
+              Your usual foods, ready to log
+            </div>
+
+            <label className="mt-4 flex h-12 items-center gap-3 rounded-md border border-border-subtle bg-raised px-4 focus-within:border-border-strong">
+              <Search
+                size={18}
+                strokeWidth={1.75}
+                className="shrink-0 text-text-tertiary"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search your foods"
+                className="type-body min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary"
+              />
+            </label>
+
+            {query.length === 0 && yesterday.length > 0 && (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-raised p-3">
+                <div className="min-w-0">
+                  <div className="type-body text-text-primary">Yesterday</div>
+                  <div className="type-footnote mt-0.5 truncate text-text-tertiary">
+                    {yesterday.length} {yesterday.length === 1 ? "entry" : "entries"} ·{" "}
+                    {formatInt(yesterdayCalories)} cal
+                  </div>
+                </div>
+                <Button
+                  variant="secondary"
+                  className="h-11 shrink-0 px-4 type-body"
+                  disabled={copyDay.isPending}
+                  onClick={() => {
+                    copyDay.mutate(yesterday);
+                    close();
+                  }}
+                >
+                  Copy all
+                </Button>
+              </div>
+            )}
+
+            <div className="type-label mt-5 mb-2 text-text-tertiary">
+              {query ? "Results" : "Suggested"}
+            </div>
+            {filteredChoices.length > 0 ? (
+              <div className="max-h-72 divide-y divide-border-subtle overflow-y-auto overscroll-contain">
+                {filteredChoices.map((choice) => (
+                  <ListRow
+                    key={choice.key}
+                    title={choice.name}
+                    subtitle={`${choice.proteinG} g protein`}
+                    trailing={
+                      <span className="type-body tabular-nums text-text-secondary">
+                        {formatInt(choice.calories)}
+                      </span>
+                    }
+                    onClick={() => setSelected(choice)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="type-body py-6 text-center text-text-tertiary">
+                {query ? "No matching foods yet" : "Your suggestions will learn as you log"}
+              </p>
+            )}
+
+            <Button
+              variant="secondary"
+              className="mt-3 w-full"
+              onClick={() => setView("custom")}
+            >
+              Enter manually
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Sheet>
+  );
+}
+
+function MacroPreview({ food }: { food: MacroValues }) {
+  const values = [
+    { label: "Cal", value: food.calories, color: "text-text-primary" },
+    { label: "Protein", value: food.proteinG, color: "text-protein" },
+    { label: "Carbs", value: food.carbsG, color: "text-carbs" },
+    { label: "Fat", value: food.fatG, color: "text-fat" },
+  ];
+
+  return (
+    <div className="mt-5 grid grid-cols-4 gap-2">
+      {values.map((item) => (
+        <div
+          key={item.label}
+          className="flex h-14 flex-col items-center justify-center gap-0.5 rounded-md border border-border-subtle bg-raised"
+        >
+          <span className={cn("type-label", item.color)}>{item.label}</span>
+          <span className="type-headline tabular-nums text-text-primary">
+            {formatInt(item.value)}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

@@ -13,7 +13,13 @@ import { ListRow } from "@/components/ui/list-row";
 import { EntrySheet } from "@/components/food/entry-sheet";
 import { MealsSheet } from "@/components/food/meals-sheet";
 import { LogDetailSheet } from "@/components/food/log-detail-sheet";
-import { useFoodLogs, useLogFood, useMeals, type FoodLog } from "@/hooks/use-food";
+import {
+  useFoodLogs,
+  useFoodSuggestions,
+  useLogFood,
+  useMeals,
+  type FoodLog,
+} from "@/hooks/use-food";
 import { useSettings } from "@/hooks/use-settings";
 import { useAppDate } from "@/hooks/use-app-date";
 import { formatFullDate } from "@/lib/dates";
@@ -25,6 +31,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
   const settings = useSettings();
   const { data: logs = [] } = useFoodLogs(date);
   const { data: meals = [] } = useMeals();
+  const { data: predictionData } = useFoodSuggestions(date);
   const logFood = useLogFood(date);
 
   const [entryOpen, setEntryOpen] = useState(false);
@@ -36,6 +43,10 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
   const carbs = logs.reduce((s, l) => s + l.carbsG, 0);
   const fat = logs.reduce((s, l) => s + l.fatG, 0);
   const surplusHit = calories >= settings.calorieTarget;
+  const quickAdds =
+    predictionData?.suggestions.length
+      ? predictionData.suggestions.slice(0, 5)
+      : meals.slice(0, 5);
 
   const fmtTime = (iso: string) =>
     new Date(iso).toLocaleTimeString("en-US", {
@@ -91,49 +102,49 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
         />
       </div>
 
-      {/* quick add — saved meals, one tap to log */}
+      {/* personal predictions remain a one-tap log */}
       <div className="mb-2 flex items-center justify-between">
-        <span className="type-label text-text-tertiary">Quick add</span>
+        <span className="type-label text-text-tertiary">Suggested now</span>
         {meals.length > 0 && (
           <Button
             variant="ghost"
             className="-mr-2 h-8 px-2"
             onClick={() => setMealsOpen(true)}
           >
-            Edit
+            Meals
           </Button>
         )}
       </div>
-      {meals.length === 0 ? (
+      {quickAdds.length === 0 ? (
         <Card className="py-6 text-center">
           <p className="type-body text-text-secondary">
-            Save your staples once, log them in two taps forever.
+            Your usual foods will appear here automatically.
           </p>
           <p className="type-footnote mt-1 text-text-tertiary">
-            Add a custom food below and flip on “Save as meal”.
+            Log something once to get started.
           </p>
         </Card>
       ) : (
         <Card className="divide-y divide-border-subtle p-0 px-3">
-          {meals.slice(0, 5).map((meal) => (
+          {quickAdds.map((food) => (
             <ListRow
-              key={meal.id}
-              title={meal.name}
-              subtitle={`${meal.proteinG} g protein`}
+              key={"key" in food ? food.key : food.id}
+              title={food.name}
+              subtitle={`${food.proteinG} g protein`}
               trailing={
                 <span className="type-body tabular-nums text-text-secondary">
-                  +{formatInt(meal.calories)}
+                  +{formatInt(food.calories)}
                 </span>
               }
               onClick={() =>
                 logFood.mutate({
                   date,
-                  name: meal.name,
-                  calories: meal.calories,
-                  proteinG: meal.proteinG,
-                  carbsG: meal.carbsG,
-                  fatG: meal.fatG,
-                  mealId: meal.id,
+                  name: food.name,
+                  calories: food.calories,
+                  proteinG: food.proteinG,
+                  carbsG: food.carbsG,
+                  fatG: food.fatG,
+                  mealId: "key" in food ? food.mealId : food.id,
                 })
               }
             />
@@ -146,7 +157,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
         onClick={() => setEntryOpen(true)}
       >
         <Plus size={18} strokeWidth={2} />
-        Add custom
+        Find or add food
       </Button>
 
       {/* today's log */}
