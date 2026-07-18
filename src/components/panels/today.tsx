@@ -8,6 +8,7 @@ import { useTabSwitch } from "@/components/shell/tab-shell";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { MacroGrid } from "@/components/ui/macro-grid";
 import { Card, PressableCard } from "@/components/ui/card";
+import { RecalibrationCard } from "@/components/today/recalibration-card";
 import { Sparkline } from "@/components/charts/sparkline";
 import { useFoodLogs } from "@/hooks/use-food";
 import { useSets } from "@/hooks/use-workouts";
@@ -126,6 +127,9 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
           />
         </PressableCard>
       )}
+
+      {/* your real TDEE — the M4 recalibration nudge, cadence-gated */}
+      <RecalibrationCard />
 
       {/* macros that matter */}
       <div className="mt-8">

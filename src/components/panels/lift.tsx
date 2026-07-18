@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Plus, Search } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,10 +10,10 @@ import { ListRow } from "@/components/ui/list-row";
 import { CheckDraw } from "@/components/ui/check-draw";
 import { PRBadge } from "@/components/ui/pr-badge";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
-import { AddExerciseSheet } from "@/components/lift/add-exercise-sheet";
 import { SetEditSheet } from "@/components/lift/set-edit-sheet";
 import {
   useArchiveExercise,
+  useCreateExercise,
   useExercises,
   useExerciseHistory,
   useLogSet,
@@ -24,8 +24,9 @@ import {
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useProfile } from "@/hooks/use-profile";
 import { useAppDate } from "@/hooks/use-app-date";
-import { classifySet, type SetFlag } from "@/lib/stats";
+import { classifySet, sessionVolume, type SetFlag } from "@/lib/stats";
 import { startOfWeek, formatShortDate } from "@/lib/dates";
+import { formatInt } from "@/lib/format";
 import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -37,7 +38,8 @@ export function LiftPanel() {
   const { data: profile } = useProfile();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const createExercise = useCreateExercise();
   const selected = exercises.find((e) => e.id === selectedId) ?? null;
 
   // the drill-in lives in history so the iOS edge back-swipe dismisses it
@@ -67,6 +69,25 @@ export function LiftPanel() {
   }, [trainingDates, date, sets.length]);
   const weekGoal = profile?.liftDaysPerWeek ?? null;
 
+  const todayVolume = useMemo(() => sessionVolume(sets), [sets]);
+
+  const q = query.trim();
+  const ql = q.toLowerCase();
+  const filtered = useMemo(
+    () => (ql ? exercises.filter((e) => e.name.toLowerCase().includes(ql)) : exercises),
+    [exercises, ql],
+  );
+  const exactMatch = exercises.some((e) => e.name.toLowerCase() === ql);
+  const createFromQuery = () => {
+    if (q.length === 0 || createExercise.isPending) return;
+    createExercise.mutate(q, {
+      onSuccess: (exercise) => {
+        setQuery("");
+        openExercise(exercise.id);
+      },
+    });
+  };
+
   return (
     <div className="relative h-full lg:grid lg:grid-cols-[340px_1fr]">
       <div className="h-full lg:border-r lg:border-border-subtle">
@@ -77,52 +98,95 @@ export function LiftPanel() {
               : `This week: ${weekCount} ${weekCount === 1 ? "session" : "sessions"}`
           }
           title="Lift"
+          trailing={
+            sets.length > 0 ? (
+              <span className="type-footnote tabular-nums rounded-full border border-border-subtle bg-raised px-3 py-1 text-text-secondary">
+                {todayVolume > 0
+                  ? `${formatInt(todayVolume)} lb`
+                  : `${sets.length} ${sets.length === 1 ? "set" : "sets"}`}
+              </span>
+            ) : undefined
+          }
         >
           {isPending && exercises.length === 0 ? (
             <Card className="h-64 animate-none" />
           ) : (
-            <Card className="divide-y divide-border-subtle p-0 px-3">
-              {exercises.map((ex) => {
-                const todayCount = setsByExercise.get(ex.id)?.length ?? 0;
-                return (
-                  <ListRow
-                    key={ex.id}
-                    title={ex.name}
-                    subtitle={undefined}
-                    trailing={
-                      <span className="flex items-center gap-2">
-                        {todayCount > 0 && (
-                          <span className="type-footnote tabular-nums text-accent">
-                            {todayCount} {todayCount === 1 ? "set" : "sets"}
-                          </span>
-                        )}
-                        <ChevronRight
-                          size={18}
-                          strokeWidth={1.75}
-                          className="text-text-tertiary"
-                        />
-                      </span>
+            <>
+              <div className="relative mb-3">
+                <Search
+                  size={17}
+                  strokeWidth={1.75}
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary"
+                />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && q.length > 0 && !exactMatch) {
+                      createFromQuery();
                     }
-                    onClick={() => openExercise(ex.id)}
-                    className={cn(
-                      selectedId === ex.id && "lg:rounded-xl lg:bg-overlay",
-                    )}
+                  }}
+                  placeholder="Search or add an exercise"
+                  maxLength={60}
+                  enterKeyHint="done"
+                  className={cn(
+                    "type-body h-12 w-full rounded-md border border-border-subtle bg-raised pl-10 pr-4",
+                    "text-text-primary placeholder:text-text-tertiary",
+                    "transition-colors duration-150 focus:border-border-strong",
+                  )}
+                />
+              </div>
+              <Card className="divide-y divide-border-subtle p-0 px-3">
+                {filtered.map((ex) => {
+                  const todayCount = setsByExercise.get(ex.id)?.length ?? 0;
+                  return (
+                    <ListRow
+                      key={ex.id}
+                      title={ex.name}
+                      subtitle={undefined}
+                      trailing={
+                        <span className="flex items-center gap-2">
+                          {todayCount > 0 && (
+                            <span className="type-footnote tabular-nums text-accent">
+                              {todayCount} {todayCount === 1 ? "set" : "sets"}
+                            </span>
+                          )}
+                          <ChevronRight
+                            size={18}
+                            strokeWidth={1.75}
+                            className="text-text-tertiary"
+                          />
+                        </span>
+                      }
+                      onClick={() => openExercise(ex.id)}
+                      className={cn(
+                        selectedId === ex.id && "lg:rounded-xl lg:bg-overlay",
+                      )}
+                    />
+                  );
+                })}
+                {q.length > 0 && !exactMatch && (
+                  <ListRow
+                    title={`Create “${q}”`}
+                    trailing={
+                      <Plus
+                        size={18}
+                        strokeWidth={1.75}
+                        className="text-text-tertiary"
+                      />
+                    }
+                    onClick={createFromQuery}
+                    className="text-text-secondary"
                   />
-                );
-              })}
-              <ListRow
-                title="Add exercise"
-                trailing={
-                  <Plus
-                    size={18}
-                    strokeWidth={1.75}
-                    className="text-text-tertiary"
-                  />
-                }
-                onClick={() => setAddOpen(true)}
-                className="text-text-secondary"
-              />
-            </Card>
+                )}
+                {filtered.length === 0 && q.length === 0 && (
+                  <div className="type-footnote py-6 text-center text-text-tertiary">
+                    Add your first exercise to start logging.
+                  </div>
+                )}
+              </Card>
+            </>
           )}
           <p className="type-footnote mt-3 text-text-tertiary">
             Beat the ghost — last session&apos;s numbers are the game.
@@ -159,12 +223,6 @@ export function LiftPanel() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <AddExerciseSheet
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        onCreated={openExercise}
-      />
     </div>
   );
 }
@@ -192,6 +250,7 @@ function ExerciseDetail({
     [history],
   );
   const records = history?.records ?? null;
+  const exerciseVolume = useMemo(() => sessionVolume(todaySets), [todaySets]);
   const setIndex = todaySets.length;
   const ghost = lastSets[setIndex] ?? lastSets[lastSets.length - 1] ?? null;
   const prior = todaySets[todaySets.length - 1] ?? null;
@@ -265,6 +324,13 @@ function ExerciseDetail({
                 }`
               : "First session — set the baseline"}
         </p>
+        {todaySets.length > 0 && (
+          <span className="type-footnote tabular-nums mt-3 inline-flex items-center rounded-full border border-border-subtle bg-raised px-3 py-1 text-text-secondary">
+            {exerciseVolume > 0
+              ? `${formatInt(exerciseVolume)} lb this session`
+              : `${todaySets.length} ${todaySets.length === 1 ? "set" : "sets"} this session`}
+          </span>
+        )}
       </header>
 
       <div className="mx-auto mt-6 max-w-2xl">
