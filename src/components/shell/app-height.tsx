@@ -3,41 +3,39 @@
 import { useEffect } from "react";
 
 /**
- * Sizes the shell to the true screen height on iOS standalone (home-screen) PWAs.
+ * Publishes the live PAINTABLE viewport height as --app-height (app-shell reads
+ * `var(--app-height, 100vh)`).
  *
- * iOS mis-reports every CSS viewport unit AND window.innerHeight in standalone
- * mode — measured on-device, 100dvh resolves ~758pt against an 874pt screen — so
- * the fixed shell falls short and its overflow:hidden clips the bottom of the tab
- * bar. In a full-bleed standalone PWA the content covers the PHYSICAL display, so
- * window.screen.* (already in CSS points) is the reliable target. We publish it
- * as --app-height; app-shell reads `var(--app-height, 100vh)`.
+ * Why innerHeight and never window.screen.*: iOS standalone (home-screen) PWAs
+ * refuse to paint below their viewport line even when a fixed box extends
+ * further — sizing the shell to the physical screen laid the tab bar out
+ * "correctly" but its bottom half was simply never rendered. The viewport
+ * itself is the paintable region, so the shell must track it exactly. The
+ * cold-start letterbox bug is fixed at the CSS root (html/body height:100vh —
+ * see globals.css); once the viewport initializes full-screen, innerHeight IS
+ * the physical height. If iOS still letterboxes, the tab bar sits at the
+ * paintable bottom, fully visible, which is the best any code can do.
  *
- * Only overrides in standalone mode — in a normal browser tab screen.* is the
- * whole monitor, so there we set innerHeight (matching 100vh). An inline <head>
- * script would run before paint, but React drops those from the RSC-rendered
- * document, so this runs as an effect; the 100vh fallback covers the first frame.
+ * Listens to visualViewport when present — iOS updates it more reliably than
+ * window resize when the standalone viewport changes (e.g. after rotation).
  */
 export function AppHeight() {
   useEffect(() => {
     const set = () => {
-      const standalone =
-        (navigator as unknown as { standalone?: boolean }).standalone === true ||
-        window.matchMedia("(display-mode: standalone)").matches ||
-        window.matchMedia("(display-mode: fullscreen)").matches;
-      const portrait = window.matchMedia("(orientation: portrait)").matches;
-      const value = standalone
-        ? portrait
-          ? Math.max(screen.width, screen.height)
-          : Math.min(screen.width, screen.height)
-        : window.innerHeight;
-      document.documentElement.style.setProperty("--app-height", `${value}px`);
+      document.documentElement.style.setProperty(
+        "--app-height",
+        `${window.innerHeight}px`,
+      );
     };
     set();
+    const vv = window.visualViewport;
     window.addEventListener("resize", set);
     window.addEventListener("orientationchange", set);
+    vv?.addEventListener("resize", set);
     return () => {
       window.removeEventListener("resize", set);
       window.removeEventListener("orientationchange", set);
+      vv?.removeEventListener("resize", set);
     };
   }, []);
 

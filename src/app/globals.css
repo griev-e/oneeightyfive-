@@ -60,7 +60,16 @@
 
 html,
 body {
-  height: 100%;
+  /*
+   * 100vh, NOT 100% and NOT 100dvh. On iOS standalone (home-screen) PWAs,
+   * height:100% on the root silently deactivates viewport-fit=cover and
+   * 100dvh is initialized to the letterboxed browser height on cold start
+   * (and stays wrong until rotation) — WebKit then refuses to paint below
+   * that line, leaving a dead strip at the bottom (where Safari's URL bar
+   * would sit). A 100vh root is the one declaration that makes the cold-start
+   * viewport cover the full screen.
+   */
+  height: 100vh;
   overflow: hidden;
 }
 
@@ -70,7 +79,6 @@ html {
 }
 
 body {
-  min-height: 100dvh;
   background: var(--color-canvas);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -183,16 +191,16 @@ a,
 /* ---- layout helpers ---- */
 @utility app-shell {
   /*
-   * iOS standalone (home-screen) PWAs mis-resolve EVERY CSS viewport height and
-   * window.innerHeight: measured on-device, 100dvh reports ~753pt against a real
-   * 874pt screen, so the fixed shell falls short and its overflow:hidden clips
-   * the bottom of the tab bar (labels vanish) while dead space opens below.
-   * Swapping units (vh → dvh → inset:0 → innerHeight → +inset-top) never fixed
-   * it because they all read the same buggy short viewport. The one value that
-   * equals the true screen in a full-bleed standalone PWA is the PHYSICAL
-   * screen dimension — window.screen.* — which <AppHeight> (components/shell)
-   * publishes as --app-height (standalone only; a browser tab keeps
-   * innerHeight). 100vh is just the pre-hydration / non-standalone fallback.
+   * Sized to the PAINTABLE viewport, never past it. iOS standalone paints
+   * nothing below its viewport line even if a fixed box extends further —
+   * measured on-device: a shell forced to the physical 874pt screen laid the
+   * tab bar out correctly but everything below the 815pt cold-start viewport
+   * simply never rendered (labels vanished). So never size this to
+   * screen.height. <AppHeight> (components/shell) publishes the live
+   * innerHeight as --app-height and keeps it current; 100vh is the
+   * pre-hydration fallback (correct from cold start once the root is 100vh —
+   * see html/body above). If iOS is still letterboxed, the bar sits at the
+   * paintable bottom, fully rendered, and the strip below is OS territory.
    */
   position: fixed;
   inset: 0;
