@@ -3,6 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, jsonBody } from "./fetch-json";
 import { useToast } from "@/components/ui/toast";
+import type {
+  FoodHistoryItem,
+  FoodSuggestion,
+} from "@/lib/food-suggestions";
 
 export type FoodLog = {
   id: string;
@@ -32,6 +36,28 @@ export function useFoodLogs(date: string) {
   return useQuery({
     queryKey: ["food-logs", date],
     queryFn: () => fetchJson<FoodLog[]>(`/api/food-logs?date=${date}`),
+  });
+}
+
+export type FoodSuggestionsResponse = {
+  suggestions: FoodSuggestion[];
+  yesterday: FoodHistoryItem[];
+};
+
+export function useFoodSuggestions(date: string) {
+  return useQuery({
+    queryKey: ["food-suggestions", date],
+    queryFn: () => {
+      const now = new Date();
+      const params = new URLSearchParams({
+        date,
+        hour: String(now.getHours()),
+        timezoneOffsetMinutes: String(now.getTimezoneOffset()),
+      });
+      return fetchJson<FoodSuggestionsResponse>(
+        `/api/food-suggestions?${params}`,
+      );
+    },
   });
 }
 
@@ -86,6 +112,60 @@ export function useLogFood(date: string) {
       void qc.invalidateQueries({ queryKey: ["food-logs", date] });
       void qc.invalidateQueries({ queryKey: ["day-summaries"] });
       // deliberately NOT ['meals'] — the quick-add rail must not resort mid-use
+    },
+  });
+}
+
+type BatchFoodInput = Omit<FoodLogInput, "date" | "loggedAt">;
+
+export function useLogFoods(date: string) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (items: BatchFoodInput[]) =>
+      fetchJson<FoodLog[]>("/api/food-logs/batch", {
+        method: "POST",
+        ...jsonBody({ date, items }),
+      }),
+    onMutate: async (items) => {
+      await qc.cancelQueries({ queryKey: ["food-logs", date] });
+      const startedAt = Date.now();
+      const optimistic = items.map<FoodLog>((item, index) => ({
+        id: `tmp-${crypto.randomUUID()}`,
+        date,
+        name: item.name,
+        calories: item.calories,
+        proteinG: item.proteinG,
+        carbsG: item.carbsG,
+        fatG: item.fatG,
+        mealId: item.mealId ?? null,
+        loggedAt: new Date(startedAt + index).toISOString(),
+      }));
+      qc.setQueryData<FoodLog[]>(["food-logs", date], (old = []) =>
+        [...old, ...optimistic].sort((a, b) =>
+          a.loggedAt < b.loggedAt ? -1 : 1,
+        ),
+      );
+      return { tmpIds: optimistic.map((item) => item.id) };
+    },
+    onSuccess: (saved, _items, ctx) => {
+      const tmpIds = new Set(ctx.tmpIds);
+      qc.setQueryData<FoodLog[]>(["food-logs", date], (old = []) =>
+        [...old.filter((item) => !tmpIds.has(item.id)), ...saved].sort((a, b) =>
+          a.loggedAt < b.loggedAt ? -1 : 1,
+        ),
+      );
+    },
+    onError: (_error, _items, ctx) => {
+      const tmpIds = new Set(ctx?.tmpIds ?? []);
+      qc.setQueryData<FoodLog[]>(["food-logs", date], (old = []) =>
+        old.filter((item) => !tmpIds.has(item.id)),
+      );
+      toast.show("Couldn't copy yesterday — try again");
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["food-logs", date] });
+      void qc.invalidateQueries({ queryKey: ["day-summaries"] });
     },
   });
 }
