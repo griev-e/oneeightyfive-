@@ -53,7 +53,23 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={GeistSans.variable}>
-      <body>{children}</body>
+      <body>
+        {/*
+         * Runs during HTML parse, before the app paints. In an iOS standalone
+         * PWA 100dvh under-reports the screen (leaving dead space at the
+         * bottom); 100vh equals the full screen there. navigator.standalone is
+         * the only reliable standalone signal on iOS — the display-mode query
+         * is not — so flip --app-height here so the correct height paints from
+         * the start.
+         */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)){document.documentElement.style.setProperty('--app-height','100vh');}}catch(e){}})();",
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

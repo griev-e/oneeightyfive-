@@ -58,9 +58,30 @@
   --spacing-tab-bar: 3.5rem;
 }
 
+/*
+ * iOS standalone (home-screen PWA) viewport-height fix.
+ * In a standalone PWA, 100dvh — and a position:fixed root — resolve to the
+ * screen MINUS the top safe area / home-indicator band, so the app ends up
+ * shorter than the physical screen and leaves dead space at the bottom (where
+ * the Safari URL bar would sit). 100vh is the only unit that equals the full
+ * physical screen in standalone (no URL bar => large viewport == screen). In a
+ * normal browser tab the opposite is true, so 100dvh stays the default and an
+ * inline bootstrap script (root layout) flips --app-height to 100vh whenever
+ * navigator.standalone is true. The display-mode media query is an unreliable
+ * signal on iOS, so it is only a secondary fallback here.
+ */
+:root {
+  --app-height: 100dvh;
+}
+@media (display-mode: standalone) {
+  :root {
+    --app-height: 100vh;
+  }
+}
+
 html,
 body {
-  height: 100%;
+  height: var(--app-height, 100dvh);
   overflow: hidden;
 }
 
@@ -70,7 +91,6 @@ html {
 }
 
 body {
-  min-height: 100dvh;
   background: var(--color-canvas);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -183,15 +203,14 @@ a,
 /* ---- layout helpers ---- */
 @utility app-shell {
   /*
-   * Fixed + inset:0 sizes the shell to the real fixed viewport on every
-   * platform. Do NOT set an explicit height here: on a fixed box, an explicit
-   * height wins over bottom:0, and iOS standalone (home-screen) PWAs resolve
-   * 100dvh/100vh SHORTER than the actual screen — that mismatch leaves dead
-   * space at the bottom (where the Safari URL bar would sit). Letting inset:0
-   * stretch top-to-bottom avoids the buggy unit entirely.
+   * NORMAL FLOW — never position:fixed. On iOS 26 standalone a fixed root is
+   * clipped to the under-reported ("lying") viewport, truncating the bottom of
+   * the shell. Sizing to --app-height (100dvh in-browser, 100vh in standalone —
+   * see the :root fix above) fills the true screen edge-to-edge in every mode.
    */
-  position: fixed;
-  inset: 0;
+  position: relative;
+  width: 100%;
+  height: var(--app-height, 100dvh);
   min-height: 0;
   overflow: hidden;
 }
