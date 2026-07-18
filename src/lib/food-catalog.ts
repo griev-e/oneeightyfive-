@@ -25,6 +25,10 @@ export type UsdaFood = {
   fdcId?: unknown;
   description?: unknown;
   brandName?: unknown;
+  gtinUpc?: unknown;
+  servingSize?: unknown;
+  servingSizeUnit?: unknown;
+  householdServingFullText?: unknown;
   foodNutrients?: Array<{
     nutrientName?: unknown;
     nutrientNumber?: unknown;
@@ -116,17 +120,27 @@ export function mapUsdaFood(food: UsdaFood): CatalogFood | null {
       ? (protein ?? 0) * 4 + (carbs ?? 0) * 4 + (fat ?? 0) * 9
       : null);
   if (!id || !name || calories === null || calories <= 0) return null;
+  const servingSize = finite(food.servingSize);
+  const servingUnit = text(food.servingSizeUnit);
+  const canScaleServing =
+    servingSize !== null &&
+    servingSize > 0 &&
+    servingUnit?.toLocaleLowerCase("en-US") === "g";
+  const scale = canScaleServing ? servingSize / 100 : 1;
+  const servingLabel =
+    (canScaleServing && text(food.householdServingFullText)) ||
+    (canScaleServing ? `${servingSize} g` : "100 g");
 
   return {
     id: `usda:${id}`,
     source: "usda",
     name,
     brand: text(food.brandName),
-    barcode: null,
-    servingLabel: "100 g",
-    calories: Math.max(1, Math.round(calories)),
-    proteinG: rounded(protein),
-    carbsG: rounded(carbs),
-    fatG: rounded(fat),
+    barcode: text(food.gtinUpc),
+    servingLabel,
+    calories: Math.max(1, Math.round(calories * scale)),
+    proteinG: rounded(protein === null ? null : protein * scale),
+    carbsG: rounded(carbs === null ? null : carbs * scale),
+    fatG: rounded(fat === null ? null : fat * scale),
   };
 }

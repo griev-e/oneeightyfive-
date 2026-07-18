@@ -84,4 +84,30 @@ describe("mapUsdaFood", () => {
       fatG: 4,
     });
   });
+
+  it("scales branded nutrition to its household serving", () => {
+    expect(
+      mapUsdaFood({
+        fdcId: 42,
+        description: "Peanut butter",
+        servingSize: 32,
+        servingSizeUnit: "g",
+        householdServingFullText: "2 Tbsp",
+        gtinUpc: "123456789012",
+        foodNutrients: [
+          { nutrientNumber: "208", value: 600 },
+          { nutrientNumber: "203", value: 25 },
+          { nutrientNumber: "205", value: 20 },
+          { nutrientNumber: "204", value: 50 },
+        ],
+      }),
+    ).toMatchObject({
+      servingLabel: "2 Tbsp",
+      barcode: "123456789012",
+      calories: 192,
+      proteinG: 8,
+      carbsG: 6,
+      fatG: 16,
+    });
+  });
 });
