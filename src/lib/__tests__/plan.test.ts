@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildPlan,
   estimateObservedTdee,
+  projectionSeries,
+  projectTimeline,
   type PlanContext,
   type PlanInputs,
 } from "@/lib/plan";
+import { addDays } from "@/lib/dates";
 
 const TODAY = "2026-07-18";
 
@@ -154,5 +157,57 @@ describe("estimateObservedTdee", () => {
     expect(
       estimateObservedTdee(days, targets, [], 0.7, "2026-07-18"),
     ).toBeNull();
+  });
+});
+
+describe("projectionSeries", () => {
+  it("starts at the anchor and rises monotonically to the goal", () => {
+    const series = projectionSeries(126, 185, 6, "standard", 73, null, TODAY);
+    expect(series[0]).toEqual({ date: TODAY, weightLbs: 126 });
+    for (let i = 1; i < series.length; i++) {
+      expect(series[i].weightLbs).toBeGreaterThan(series[i - 1].weightLbs);
+      expect(series[i].date).toBe(addDays(TODAY, i * 7));
+    }
+    expect(series[series.length - 1].weightLbs).toBeGreaterThanOrEqual(185);
+  });
+
+  it("lands on the same date projectTimeline reports", () => {
+    const series = projectionSeries(126, 185, 6, "standard", 73, null, TODAY);
+    const timeline = projectTimeline(126, 185, 6, "standard", 73, null, TODAY);
+    expect(timeline).toEqual({
+      kind: "date",
+      projectedDate: series[series.length - 1].date,
+      weeks: series.length - 1,
+    });
+  });
+
+  it("tapers the slope as the lifter crosses a training-age tier", () => {
+    // starts novice (6 months); by week 30 the sim has crossed into
+    // intermediate territory and weekly gains must have shrunk
+    const series = projectionSeries(150, 200, 6, "standard", 73, null, TODAY);
+    const early = series[4].weightLbs - series[3].weightLbs;
+    const late = series[40].weightLbs - series[39].weightLbs;
+    expect(late).toBeLessThan(early);
+  });
+
+  it("holds a constant slope under a manual rate override", () => {
+    const series = projectionSeries(150, 160, 6, "standard", 73, 0.5, TODAY);
+    for (let i = 1; i < series.length; i++) {
+      expect(series[i].weightLbs - series[i - 1].weightLbs).toBeCloseTo(0.5);
+    }
+  });
+
+  it("caps an unreachable goal at 260 weeks (projectTimeline: open-ended)", () => {
+    const series = projectionSeries(150, 5000, 40, "lean", 73, null, TODAY);
+    expect(series).toHaveLength(261);
+    expect(projectTimeline(150, 5000, 40, "lean", 73, null, TODAY)).toEqual({
+      kind: "open-ended",
+    });
+  });
+
+  it("returns only the anchor when already at goal", () => {
+    expect(projectionSeries(185, 185, 6, "standard", 73, null, TODAY)).toEqual([
+      { date: TODAY, weightLbs: 185 },
+    ]);
   });
 });

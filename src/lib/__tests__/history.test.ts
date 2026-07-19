@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nutritionSeries, type DayMacros } from "@/lib/history";
+import { macroAdherence, nutritionSeries, type DayMacros } from "@/lib/history";
 import type { TargetRow } from "@/lib/streaks";
 
 const TODAY = "2026-07-18";
@@ -92,5 +92,44 @@ describe("nutritionSeries", () => {
       FALLBACK,
     );
     expect(out.guide.every((p) => p.weightLbs === 80)).toBe(true);
+  });
+});
+
+describe("macroAdherence", () => {
+  it("judges each day against the target in force that day", () => {
+    const out = macroAdherence(
+      [
+        day("2026-07-15", { calories: 2750 }), // ≥ 2700 → hit
+        day("2026-07-16", { calories: 2600 }), // < 2700 → miss
+        day("2026-07-17", { calories: 2950 }), // ≥ 2900 (new target) → hit
+      ],
+      [target("2026-07-01"), target("2026-07-17", { calorieTarget: 2900 })],
+      "calories",
+      TODAY,
+      FALLBACK,
+    );
+    expect(out).toEqual({ hit: 2, logged: 3 });
+  });
+
+  it("excludes today and out-of-window days; unlogged days are not misses", () => {
+    const out = macroAdherence(
+      [day("2026-05-01"), day("2026-07-16"), day(TODAY)],
+      [target("2026-07-01")],
+      "calories",
+      TODAY,
+      FALLBACK,
+    );
+    expect(out).toEqual({ hit: 1, logged: 1 });
+  });
+
+  it("falls back to current settings when history predates target_history", () => {
+    const out = macroAdherence(
+      [day("2026-07-16", { fatG: 85 })],
+      [],
+      "fat",
+      TODAY,
+      FALLBACK,
+    );
+    expect(out).toEqual({ hit: 1, logged: 1 });
   });
 });

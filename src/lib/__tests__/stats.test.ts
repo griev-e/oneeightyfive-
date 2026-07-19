@@ -8,6 +8,7 @@ import {
   projectionGuide,
   rollingAverage,
   sessionVolume,
+  weeklyVolume,
   type ExerciseRecords,
   type WeighIn,
 } from "@/lib/stats";
@@ -258,5 +259,56 @@ describe("projectionGuide", () => {
     expect(projectionGuide({ date: "2026-07-18", weightLbs: 185 }, 0.5, 28, 185)).toEqual([]);
     expect(projectionGuide(from, 0, 28, 185)).toEqual([]);
     expect(projectionGuide(undefined, 0.5, 28, 185)).toEqual([]);
+  });
+});
+
+describe("weeklyVolume", () => {
+  const TODAY = "2026-07-19"; // a Sunday — the current week starts Mon 2026-07-13
+  const day = (date: string, volumeLbs: number) => ({ date, volumeLbs, sets: 3 });
+
+  it("buckets by Monday-start weeks, zero-filling untrained weeks", () => {
+    const out = weeklyVolume(
+      [day("2026-07-12", 5000), day("2026-07-13", 6000)], // Sun vs Mon straddle
+      [],
+      TODAY,
+      4,
+    );
+    expect(out.map((w) => w.weekStart)).toEqual([
+      "2026-06-22",
+      "2026-06-29",
+      "2026-07-06",
+      "2026-07-13",
+    ]);
+    expect(out.map((w) => w.volumeLbs)).toEqual([0, 0, 5000, 6000]);
+    expect(out.map((w) => w.sessions)).toEqual([0, 0, 1, 1]);
+  });
+
+  it("drops feed rows at/after today and overlays the live session instead", () => {
+    const out = weeklyVolume(
+      [day(TODAY, 9999)], // a stale synced row for today must not double-count
+      [
+        { weightLbs: 100, reps: 5 },
+        { weightLbs: 100, reps: 5 },
+      ],
+      TODAY,
+      2,
+    );
+    const current = out[out.length - 1];
+    expect(current.volumeLbs).toBe(1000);
+    expect(current.sessions).toBe(1);
+  });
+
+  it("counts a bodyweight-only session with zero tonnage", () => {
+    const out = weeklyVolume([], [{ weightLbs: 0, reps: 12 }], TODAY, 2);
+    expect(out[out.length - 1]).toEqual({
+      weekStart: "2026-07-13",
+      volumeLbs: 0,
+      sessions: 1,
+    });
+  });
+
+  it("ignores closed days older than the window", () => {
+    const out = weeklyVolume([day("2026-06-01", 4000)], [], TODAY, 2);
+    expect(out.every((w) => w.volumeLbs === 0)).toBe(true);
   });
 });

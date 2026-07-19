@@ -94,9 +94,9 @@ export type Plan = {
   >;
 };
 
-export const round25 = (n: number) => Math.round(n / 25) * 25;
-export const round5 = (n: number) => Math.round(n / 5) * 5;
-export const roundTo = (n: number, step: number) =>
+const round25 = (n: number) => Math.round(n / 25) * 25;
+const round5 = (n: number) => Math.round(n / 5) * 5;
+const roundTo = (n: number, step: number) =>
   Math.round(n / step) * step;
 const clamp = (n: number, lo: number, hi: number) =>
   Math.min(Math.max(n, lo), hi);
@@ -166,7 +166,7 @@ export function planWeightLbs(
   return ra[ra.length - 1].weightLbs;
 }
 
-export function kcalPerLbGained(leanFraction: number): number {
+function kcalPerLbGained(leanFraction: number): number {
   return leanFraction * KCAL_PER_LB_LEAN + (1 - leanFraction) * KCAL_PER_LB_FAT;
 }
 
@@ -386,6 +386,39 @@ export function buildPlan(inputs: PlanInputs, ctx: PlanContext): Plan {
   };
 }
 
+const PROJECTION_CAP_WEEKS = 260; // 5 years
+
+/**
+ * The weekly simulated path from the starting weight to the goal — the same
+ * training-age taper (and decaying underweight boost) that projectTimeline
+ * summarizes, emitted point by point so the Weight chart can draw the curve.
+ */
+export function projectionSeries(
+  startWeight: number,
+  goalWeight: number,
+  startMonths: number,
+  style: BulkStyle,
+  heightIn: number,
+  rateOverride: number | null,
+  startDate: string,
+): WeighIn[] {
+  let w = startWeight;
+  let months = startMonths;
+  const series: WeighIn[] = [{ date: startDate, weightLbs: w }];
+  while (w < goalWeight && series.length - 1 < PROJECTION_CAP_WEEKS) {
+    const bmi = (703 * w) / (heightIn * heightIn);
+    const rate =
+      rateOverride ??
+      ((RATE_TABLE[tierOf(months)][style] + (bmi < 18.5 ? 0.25 : 0)) / 100) *
+        w /
+        WEEKS_PER_MONTH;
+    w += Math.max(rate, 0.05);
+    months += 1 / WEEKS_PER_MONTH;
+    series.push({ date: addDays(startDate, series.length * 7), weightLbs: w });
+  }
+  return series;
+}
+
 /** Weekly simulation with training-age taper and the underweight boost decaying away. */
 export function projectTimeline(
   startWeight: number,
@@ -398,23 +431,18 @@ export function projectTimeline(
 ):
   | { kind: "date"; projectedDate: string; weeks: number }
   | { kind: "open-ended" } {
-  let w = startWeight;
-  let months = startMonths;
-  let weeks = 0;
-  const CAP = 260; // 5 years
-  while (w < goalWeight && weeks < CAP) {
-    const bmi = (703 * w) / (heightIn * heightIn);
-    const rate =
-      rateOverride ??
-      ((RATE_TABLE[tierOf(months)][style] + (bmi < 18.5 ? 0.25 : 0)) / 100) *
-        w /
-        WEEKS_PER_MONTH;
-    w += Math.max(rate, 0.05);
-    weeks += 1;
-    months += 1 / WEEKS_PER_MONTH;
-  }
-  if (weeks >= CAP) return { kind: "open-ended" };
-  return { kind: "date", projectedDate: addDays(today, weeks * 7), weeks };
+  const series = projectionSeries(
+    startWeight,
+    goalWeight,
+    startMonths,
+    style,
+    heightIn,
+    rateOverride,
+    today,
+  );
+  const weeks = series.length - 1;
+  if (weeks >= PROJECTION_CAP_WEEKS) return { kind: "open-ended" };
+  return { kind: "date", projectedDate: series[weeks].date, weeks };
 }
 
 /**
