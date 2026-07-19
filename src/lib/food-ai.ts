@@ -64,7 +64,9 @@ function getAnthropicClient(): Anthropic {
   return new Anthropic({ timeout: 25_000, maxRetries: 1 });
 }
 
-function normalizeAnalysis(value: unknown): AnalyzedFood | null {
+/** Exported for unit tests: this is the only place range clamping happens,
+ * since strict JSON schemas can't express numeric bounds. */
+export function normalizeAnalysis(value: unknown): AnalyzedFood | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   const name = typeof item.name === "string" ? item.name.trim() : "";
