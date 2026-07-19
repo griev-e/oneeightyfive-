@@ -169,9 +169,11 @@ describe("shouldPersistMutation", () => {
     expect(shouldPersistMutation(paused)).toBe(true);
 
     // an unkeyed mutation must never be persisted — it can't be resumed
-    const stray = qc.getMutationCache().build(qc, {
-      mutationFn: async () => null,
-    });
+    const stray = qc
+      .getMutationCache()
+      .build<unknown, Error, unknown, unknown>(qc, {
+        mutationFn: async () => null,
+      });
     expect(shouldPersistMutation(stray)).toBe(false);
   });
 });

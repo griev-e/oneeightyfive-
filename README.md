@@ -18,7 +18,8 @@ vaul · Geist · Supabase (from M2) · Vercel
 ```sh
 pnpm install
 pnpm dev          # http://localhost:3000
-pnpm build && pnpm start
+pnpm build && pnpm start   # build also stamps public/sw.js from scripts/sw.template.js
+pnpm test && pnpm lint && pnpm typecheck
 node scripts/generate-assets.mjs   # regenerate icons + iOS splash screens
 ```
 
@@ -41,9 +42,11 @@ credentials remain server-only and must never use a `NEXT_PUBLIC_` prefix.
 
 ## Status
 
-M1 (shell + design system), M2 (PIN lock, Supabase, live weight tracking), and
-M3 (onboarding questionnaire + plan engine, live nutrition with full macros,
-live workout logging with PR/overload detection, real streaks) are done. Mock
-data is gone — every number in the app is yours. M4 (recalibration UI, iPad
-two-pane, service worker) and M5 (dashboard polish) remain. Conventions, data
-model, and the milestone plan live in [CLAUDE.md](./CLAUDE.md).
+Milestones M1–M7 are complete: shell + design system, PIN lock + Supabase,
+fully live data (zero mock), workout polish + recalibration, dashboard +
+streaks, universal food capture (search/barcode/label/photo/voice), plan
+view + offline write queue, and M7's weekly insights (volume, adherence,
+goal projection) + gym QoL (rest timer, per-set RPE/notes) + hardening
+(deploy-versioned service worker, weigh-in corrections, settings/plan-event
+decoupling). Conventions, data model, and the milestone ledger live in
+[CLAUDE.md](./CLAUDE.md).
