@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchJson, jsonBody } from "./fetch-json";
+import { fetchJson, HttpError, jsonBody } from "./fetch-json";
 import { useToast } from "@/components/ui/toast";
 import type { ExerciseRecords } from "@/lib/stats";
 
@@ -19,10 +19,15 @@ export type WorkoutSet = {
   weightLbs: number;
   reps: number;
   setNumber: number;
+  rpe: number | null;
+  note: string | null;
 };
 
 export type ExerciseHistory = {
-  lastSession: { date: string; sets: { weightLbs: number; reps: number }[] } | null;
+  lastSession: {
+    date: string;
+    sets: { weightLbs: number; reps: number; rpe: number | null }[];
+  } | null;
   records: ExerciseRecords | null;
   recent: { date: string; sets: number; topWeight: number; topReps: number }[];
 };
@@ -45,11 +50,26 @@ export function useCreateExercise() {
     },
     onError: (e) => {
       toast.show(
-        e instanceof Error && e.message.includes("409")
+        e instanceof HttpError && e.status === 409
           ? "That exercise already exists"
           : "Couldn't add — try again",
       );
     },
+  });
+}
+
+/** Undo for an archive — flips archived_at back off. */
+export function useRestoreExercise() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJson<{ ok: true }>(`/api/exercises/${id}`, {
+        method: "PATCH",
+        ...jsonBody({ archived: false }),
+      }),
+    onError: () => toast.show("Couldn't restore — try again"),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["exercises"] }),
   });
 }
 
@@ -93,7 +113,13 @@ export function useExerciseHistory(exerciseId: string | null, today: string) {
   });
 }
 
-type LogSetInput = { exerciseId: string; weightLbs: number; reps: number };
+type LogSetInput = {
+  exerciseId: string;
+  weightLbs: number;
+  reps: number;
+  rpe?: number | null;
+  note?: string | null;
+};
 
 export function useLogSet(date: string) {
   const qc = useQueryClient();
@@ -117,7 +143,10 @@ export function useLogSet(date: string) {
         const mine = old.filter((s) => s.exerciseId === input.exerciseId);
         const setNumber =
           mine.reduce((m, s) => Math.max(m, s.setNumber), 0) + 1;
-        return [...old, { id: tmpId, setNumber, ...input }];
+        return [
+          ...old,
+          { rpe: null, note: null, id: tmpId, setNumber, ...input },
+        ];
       });
       return { tmpId };
     },
@@ -156,7 +185,16 @@ export function useUpdateSet(date: string, exerciseId: string) {
   const qc = useQueryClient();
   const toast = useToast();
   return useMutation({
-    mutationFn: ({ id, ...patch }: { id: string; weightLbs?: number; reps?: number }) =>
+    mutationFn: ({
+      id,
+      ...patch
+    }: {
+      id: string;
+      weightLbs?: number;
+      reps?: number;
+      rpe?: number | null;
+      note?: string | null;
+    }) =>
       fetchJson<{ ok: true }>(`/api/sets/${id}`, {
         method: "PATCH",
         ...jsonBody(patch),

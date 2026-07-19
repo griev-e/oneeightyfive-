@@ -50,6 +50,8 @@ export type LogSetVars = {
   exerciseId: string;
   weightLbs: number;
   reps: number;
+  rpe?: number | null;
+  note?: string | null;
 };
 
 export function registerMutationDefaults(qc: QueryClient) {
