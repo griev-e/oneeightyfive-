@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import {
   analyzeFoodImage,
   FoodAiUnavailableError,
+  type FoodImageMediaType,
 } from "@/lib/food-ai";
 
 // Vision analysis regularly outlives the platform's default function
-// timeout; without this the reader 504s before OpenAI answers.
+// timeout; without this the reader 504s before the model answers.
 export const maxDuration = 60;
 
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -29,7 +30,8 @@ export async function POST(req: Request) {
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const food = await analyzeFoodImage(
       mode,
-      `data:${file.type};base64,${base64}`,
+      file.type as FoodImageMediaType,
+      base64,
     );
     return NextResponse.json({ food });
   } catch (error) {

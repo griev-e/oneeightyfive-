@@ -6,7 +6,7 @@ import {
 } from "@/lib/food-ai";
 
 // Model calls regularly outlive the platform's default function
-// timeout; without this the request 504s before OpenAI answers.
+// timeout; without this the request 504s before the model answers.
 export const maxDuration = 60;
 
 export async function POST(req: Request) {

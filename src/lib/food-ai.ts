@@ -1,4 +1,8 @@
+import Anthropic from "@anthropic-ai/sdk";
+
 export type FoodAnalysisMode = "description" | "label" | "meal-photo";
+
+export type FoodImageMediaType = "image/jpeg" | "image/png" | "image/webp";
 
 export type AnalyzedFood = {
   name: string;
@@ -13,6 +17,9 @@ export type AnalyzedFood = {
 
 export class FoodAiUnavailableError extends Error {}
 
+// Structured-outputs schema. The API rejects numeric/length constraints
+// (minimum, maxLength, …) in strict JSON schemas — range clamping stays in
+// normalizeAnalysis instead.
 const FOOD_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -27,14 +34,14 @@ const FOOD_SCHEMA = {
     "notes",
   ],
   properties: {
-    name: { type: "string", minLength: 1, maxLength: 80 },
-    servingLabel: { type: "string", minLength: 1, maxLength: 80 },
-    calories: { type: "integer", minimum: 1, maximum: 5000 },
-    proteinG: { type: "integer", minimum: 0, maximum: 500 },
-    carbsG: { type: "integer", minimum: 0, maximum: 1000 },
-    fatG: { type: "integer", minimum: 0, maximum: 500 },
+    name: { type: "string" },
+    servingLabel: { type: "string" },
+    calories: { type: "integer" },
+    proteinG: { type: "integer" },
+    carbsG: { type: "integer" },
+    fatG: { type: "integer" },
     confidence: { type: "string", enum: ["high", "medium", "low"] },
-    notes: { type: "string", maxLength: 240 },
+    notes: { type: "string" },
   },
 } as const;
 
@@ -49,29 +56,12 @@ const MODE_INSTRUCTIONS: Record<FoodAnalysisMode, string> = {
   "meal-photo": `Identify visible foods and estimate their portions. Aggregate the complete visible meal. Account for likely cooking oil or sauces only when visually supported. Meal-photo estimates are inherently uncertain, so confidence must never be high.`,
 };
 
-function getApiKey(): string {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    throw new FoodAiUnavailableError("OPENAI_API_KEY is not configured");
+function getAnthropicClient(): Anthropic {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new FoodAiUnavailableError("ANTHROPIC_API_KEY is not configured");
   }
-  return key;
-}
-
-function outputText(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const response = payload as {
-    output_text?: unknown;
-    output?: Array<{ content?: Array<{ type?: unknown; text?: unknown }> }>;
-  };
-  if (typeof response.output_text === "string") return response.output_text;
-  for (const item of response.output ?? []) {
-    for (const content of item.content ?? []) {
-      if (content.type === "output_text" && typeof content.text === "string") {
-        return content.text;
-      }
-    }
-  }
-  return null;
+  // 25s per attempt + 1 retry stays inside the route's 60s maxDuration.
+  return new Anthropic({ timeout: 25_000, maxRetries: 1 });
 }
 
 function normalizeAnalysis(value: unknown): AnalyzedFood | null {
@@ -110,75 +100,71 @@ function normalizeAnalysis(value: unknown): AnalyzedFood | null {
 
 async function createAnalysis(
   mode: FoodAnalysisMode,
-  content: Array<Record<string, unknown>>,
+  content: Anthropic.ContentBlockParam[],
 ): Promise<AnalyzedFood> {
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    signal: AbortSignal.timeout(45_000),
-    headers: {
-      authorization: `Bearer ${getApiKey()}`,
-      "content-type": "application/json",
+  const client = getAnthropicClient();
+  const response = await client.messages.create({
+    model: process.env.ANTHROPIC_FOOD_MODEL ?? "claude-sonnet-5",
+    max_tokens: 4096,
+    system: `${BASE_INSTRUCTIONS}\n${MODE_INSTRUCTIONS[mode]}`,
+    // Nutrition extraction is short, scoped work — low effort keeps
+    // adaptive thinking cheap and the response fast.
+    output_config: {
+      effort: "low",
+      format: { type: "json_schema", schema: FOOD_SCHEMA },
     },
-    body: JSON.stringify({
-      model: process.env.OPENAI_FOOD_MODEL ?? "gpt-5.6-terra",
-      store: false,
-      instructions: `${BASE_INSTRUCTIONS}\n${MODE_INSTRUCTIONS[mode]}`,
-      input: [{ role: "user", content }],
-      // Nutrition extraction needs no deep reasoning, and reasoning tokens
-      // count against max_output_tokens — at the default effort the budget is
-      // spent before any JSON is emitted and the response comes back
-      // incomplete. Low effort also keeps vision calls inside the route's
-      // maxDuration.
-      reasoning: { effort: "low" },
-      max_output_tokens: 2000,
-      text: {
-        verbosity: "low",
-        format: {
-          type: "json_schema",
-          name: "food_log_analysis",
-          strict: true,
-          schema: FOOD_SCHEMA,
-        },
-      },
-    }),
+    messages: [{ role: "user", content }],
   });
-  if (!response.ok) throw new Error(`OpenAI responses API: ${response.status}`);
-  const payload = (await response.json()) as {
-    status?: unknown;
-    incomplete_details?: { reason?: unknown };
-  };
-  const raw = outputText(payload);
+  if (response.stop_reason === "refusal") {
+    throw new Error("Claude declined to analyze this input");
+  }
+  const raw = response.content.find(
+    (block): block is Anthropic.TextBlock => block.type === "text",
+  )?.text;
   if (!raw) {
     throw new Error(
-      `OpenAI returned no analysis text (status ${String(payload.status)}, reason ${String(payload.incomplete_details?.reason)})`,
+      `Claude returned no analysis text (stop_reason ${String(response.stop_reason)})`,
     );
   }
   const analysis = normalizeAnalysis(JSON.parse(raw));
-  if (!analysis) throw new Error("OpenAI returned an invalid food analysis");
+  if (!analysis) throw new Error("Claude returned an invalid food analysis");
   return analysis;
 }
 
 export function analyzeFoodDescription(text: string): Promise<AnalyzedFood> {
-  return createAnalysis("description", [{ type: "input_text", text }]);
+  return createAnalysis("description", [{ type: "text", text }]);
 }
 
 export function analyzeFoodImage(
   mode: "label" | "meal-photo",
-  dataUrl: string,
+  mediaType: FoodImageMediaType,
+  base64: string,
 ): Promise<AnalyzedFood> {
   return createAnalysis(mode, [
     {
-      type: "input_text",
+      type: "image",
+      source: { type: "base64", media_type: mediaType, data: base64 },
+    },
+    {
+      type: "text",
       text:
         mode === "label"
           ? "Extract one serving from this nutrition label."
           : "Estimate the complete meal in this photo.",
     },
-    { type: "input_image", image_url: dataUrl, detail: "high" },
   ]);
 }
 
+/** Anthropic has no transcription endpoint, so voice capture still rides on
+ * OpenAI's transcription API. Optional: without OPENAI_API_KEY the voice
+ * route 503s while every other capture mode works. */
 export async function transcribeFoodAudio(file: File): Promise<string> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    throw new FoodAiUnavailableError(
+      "OPENAI_API_KEY is not configured (voice transcription only)",
+    );
+  }
   const form = new FormData();
   form.set("file", file, file.name || "food.webm");
   form.set("model", "gpt-4o-mini-transcribe");
@@ -192,7 +178,7 @@ export async function transcribeFoodAudio(file: File): Promise<string> {
     {
       method: "POST",
       signal: AbortSignal.timeout(30_000),
-      headers: { authorization: `Bearer ${getApiKey()}` },
+      headers: { authorization: `Bearer ${key}` },
       body: form,
     },
   );
