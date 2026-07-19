@@ -7,7 +7,14 @@ import type { TargetRow } from "@/lib/streaks";
 import { useAppDate } from "./use-app-date";
 
 export type DaySummaries = {
-  days: { date: string; calories: number; proteinG: number; entryCount: number }[];
+  days: {
+    date: string;
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    entryCount: number;
+  }[];
   targets: TargetRow[];
   trainingDates: string[];
 };

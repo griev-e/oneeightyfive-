@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const [logs, targets, sets] = await Promise.all([
     supabase
       .from("food_logs")
-      .select("date, calories, protein_g")
+      .select("date, calories, protein_g, carbs_g, fat_g")
       .gte("date", from)
       .order("date"),
     supabase
@@ -30,12 +30,16 @@ export async function GET(req: Request) {
 
   const byDate = new Map<
     string,
-    { calories: number; proteinG: number; entryCount: number }
+    { calories: number; proteinG: number; carbsG: number; fatG: number; entryCount: number }
   >();
   for (const l of logs.data) {
-    const d = byDate.get(l.date) ?? { calories: 0, proteinG: 0, entryCount: 0 };
+    const d =
+      byDate.get(l.date) ??
+      { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, entryCount: 0 };
     d.calories += l.calories;
     d.proteinG += l.protein_g;
+    d.carbsG += l.carbs_g;
+    d.fatG += l.fat_g;
     d.entryCount += 1;
     byDate.set(l.date, d);
   }

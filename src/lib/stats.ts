@@ -75,6 +75,49 @@ export function e1rm(weightLbs: number, reps: number): number {
   return weightLbs * (1 + Math.min(reps, 12) / 30);
 }
 
+export type SessionSummary = {
+  date: string;
+  sets: number;
+  topWeight: number;
+  topReps: number;
+};
+
+/**
+ * Per-session trend points for the lift chart: top-set e1RM for weighted
+ * lifts, top reps for bodyweight ones. Accepts the history feed's
+ * newest-first `recent` and returns an ascending series.
+ */
+export function e1rmSeries(recent: SessionSummary[]): WeighIn[] {
+  return [...recent]
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((s) => ({
+      date: s.date,
+      weightLbs: s.topWeight > 0 ? e1rm(s.topWeight, s.topReps) : s.topReps,
+    }));
+}
+
+/**
+ * Straight guide line from the latest trend point at the goal rate — the
+ * same slope the pace band judges against. Clamped at the goal weight;
+ * empty when there's nothing meaningful to project.
+ */
+export function projectionGuide(
+  from: WeighIn | undefined,
+  ratePerWeek: number,
+  days: number,
+  goalWeightLbs: number | null,
+): WeighIn[] {
+  if (!from || ratePerWeek <= 0 || days <= 0) return [];
+  if (goalWeightLbs !== null && from.weightLbs >= goalWeightLbs) return [];
+  let endDays = days;
+  let end = from.weightLbs + (ratePerWeek / 7) * days;
+  if (goalWeightLbs !== null && end > goalWeightLbs) {
+    endDays = Math.ceil(((goalWeightLbs - from.weightLbs) * 7) / ratePerWeek);
+    end = from.weightLbs + (ratePerWeek / 7) * endDays;
+  }
+  return [from, { date: addDays(from.date, endDays), weightLbs: end }];
+}
+
 /**
  * Session tonnage: Σ weight × reps. Bodyweight sets (weight 0) contribute
  * nothing to load — the volume chip falls back to a set count for those.

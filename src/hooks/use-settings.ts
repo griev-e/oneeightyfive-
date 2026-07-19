@@ -64,6 +64,7 @@ export function useUpdateSettings() {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["settings"] });
       void qc.invalidateQueries({ queryKey: ["day-summaries"] });
+      void qc.invalidateQueries({ queryKey: ["plan-events"] });
     },
   });
 }

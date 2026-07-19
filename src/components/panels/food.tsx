@@ -13,6 +13,7 @@ import { ListRow } from "@/components/ui/list-row";
 import { EntrySheet } from "@/components/food/entry-sheet";
 import { MealsSheet } from "@/components/food/meals-sheet";
 import { LogDetailSheet } from "@/components/food/log-detail-sheet";
+import { NutritionHistory } from "@/components/food/nutrition-history";
 import {
   useFoodLogs,
   useFoodSuggestions,
@@ -208,6 +209,8 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
           </Card>
         </>
       )}
+
+      <NutritionHistory isActive={isActive} />
 
       <EntrySheet open={entryOpen} onOpenChange={setEntryOpen} date={date} />
       <MealsSheet open={mealsOpen} onOpenChange={setMealsOpen} />

@@ -23,12 +23,11 @@ export type Streak = {
   todayTarget: number;
 };
 
-/** Target in force on a date; earliest row covers earlier dates; settings cover an empty history. */
-export function targetFor(
+/** Target row in force on a date; earliest row covers earlier dates. */
+export function targetRowFor(
   date: string,
   targets: TargetRow[],
-  fallbackCalories: number,
-): number {
+): TargetRow | null {
   let best: TargetRow | null = null;
   let earliest: TargetRow | null = null;
   for (const t of targets) {
@@ -40,7 +39,16 @@ export function targetFor(
       best = t;
     }
   }
-  return (best ?? earliest)?.calorieTarget ?? fallbackCalories;
+  return best ?? earliest;
+}
+
+/** Calorie target in force on a date; settings cover an empty history. */
+export function targetFor(
+  date: string,
+  targets: TargetRow[],
+  fallbackCalories: number,
+): number {
+  return targetRowFor(date, targets)?.calorieTarget ?? fallbackCalories;
 }
 
 /** One day on the streak rail: its intake, the target that ruled it, hit state. */

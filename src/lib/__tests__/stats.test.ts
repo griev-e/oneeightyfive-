@@ -3,7 +3,9 @@ import {
   classifySet,
   computePace,
   e1rm,
+  e1rmSeries,
   foldRecords,
+  projectionGuide,
   rollingAverage,
   sessionVolume,
   type ExerciseRecords,
@@ -213,5 +215,48 @@ describe("classifySet", () => {
     expect(
       classifySet({ weightLbs: 135, reps: 5 }, records, [], null),
     ).toBe("none");
+  });
+});
+
+describe("e1rmSeries", () => {
+  it("maps newest-first sessions to an ascending e1RM series", () => {
+    const out = e1rmSeries([
+      { date: "2026-07-15", sets: 3, topWeight: 150, topReps: 5 },
+      { date: "2026-07-10", sets: 3, topWeight: 145, topReps: 5 },
+    ]);
+    expect(out.map((p) => p.date)).toEqual(["2026-07-10", "2026-07-15"]);
+    expect(out[1].weightLbs).toBeCloseTo(e1rm(150, 5));
+  });
+
+  it("uses top reps as the y-value for bodyweight sessions", () => {
+    const out = e1rmSeries([
+      { date: "2026-07-15", sets: 3, topWeight: 0, topReps: 12 },
+      { date: "2026-07-10", sets: 3, topWeight: 0, topReps: 10 },
+    ]);
+    expect(out.map((p) => p.weightLbs)).toEqual([10, 12]);
+  });
+});
+
+describe("projectionGuide", () => {
+  const from: WeighIn = { date: "2026-07-18", weightLbs: 126 };
+
+  it("draws a 2-point line at the goal rate", () => {
+    const guide = projectionGuide(from, 0.5, 28, 185);
+    expect(guide).toHaveLength(2);
+    expect(guide[0]).toEqual(from);
+    expect(guide[1].date).toBe("2026-08-15");
+    expect(guide[1].weightLbs).toBeCloseTo(128);
+  });
+
+  it("clamps the line at the goal weight", () => {
+    const guide = projectionGuide(from, 0.5, 28, 127);
+    expect(guide[1].weightLbs).toBeLessThanOrEqual(127.1);
+    expect(guide[1].date < "2026-08-15").toBe(true);
+  });
+
+  it("returns nothing at/past goal, at a zero rate, or with no anchor", () => {
+    expect(projectionGuide({ date: "2026-07-18", weightLbs: 185 }, 0.5, 28, 185)).toEqual([]);
+    expect(projectionGuide(from, 0, 28, 185)).toEqual([]);
+    expect(projectionGuide(undefined, 0.5, 28, 185)).toEqual([]);
   });
 });

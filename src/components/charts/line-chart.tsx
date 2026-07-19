@@ -17,12 +17,18 @@ export type ChartPoint = WeighIn;
 export function LineChart({
   data,
   avg,
+  guide,
+  color = "var(--color-text-primary)",
   height = 220,
   isActive = true,
   onScrub,
 }: {
   data: ChartPoint[];
   avg: ChartPoint[];
+  /** dashed reference path (target, projection) — never scrubbed, never mint */
+  guide?: ChartPoint[];
+  /** stroke for the average line + endpoint dot (identity hues, not status) */
+  color?: string;
   height?: number;
   isActive?: boolean;
   onScrub?: (point: ChartPoint | null) => void;
@@ -48,13 +54,16 @@ export function LineChart({
 
   const PAD = { top: 12, bottom: 12, left: 8, right: 8 };
 
-  const { xFor, yFor, linePath } = useMemo(() => {
+  const { xFor, yFor, linePath, guidePath } = useMemo(() => {
     if (data.length === 0 || width === 0) {
-      return { xFor: () => 0, yFor: () => 0, linePath: "" };
+      return { xFor: () => 0, yFor: () => 0, linePath: "", guidePath: "" };
     }
-    const first = data[0].date;
-    const span = Math.max(daysBetween(first, data[data.length - 1].date), 1);
-    const values = [...data, ...avg].map((p) => p.weightLbs);
+    // the guide may extend past the data (a projection) — it stretches both domains
+    const all = [...data, ...(guide ?? [])];
+    const first = all.reduce((m, p) => (p.date < m ? p.date : m), all[0].date);
+    const last = all.reduce((m, p) => (p.date > m ? p.date : m), all[0].date);
+    const span = Math.max(daysBetween(first, last), 1);
+    const values = [...data, ...avg, ...(guide ?? [])].map((p) => p.weightLbs);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = Math.max(max - min, 1);
@@ -64,11 +73,15 @@ export function LineChart({
       PAD.left + (daysBetween(first, p.date) / span) * innerW;
     const yFor = (p: ChartPoint) =>
       PAD.top + (1 - (p.weightLbs - min) / range) * innerH;
-    const linePath = avg
-      .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(p)},${yFor(p)}`)
-      .join(" ");
-    return { xFor, yFor, linePath };
-  }, [data, avg, width, height, PAD.left, PAD.right, PAD.top, PAD.bottom]);
+    const toPath = (pts: ChartPoint[]) =>
+      pts.map((p, i) => `${i === 0 ? "M" : "L"}${xFor(p)},${yFor(p)}`).join(" ");
+    return {
+      xFor,
+      yFor,
+      linePath: toPath(avg),
+      guidePath: guide && guide.length > 1 ? toPath(guide) : "",
+    };
+  }, [data, avg, guide, width, height, PAD.left, PAD.right, PAD.top, PAD.bottom]);
 
   const handlePointer = (e: React.PointerEvent) => {
     if (data.length === 0 || width === 0) return;
@@ -122,6 +135,16 @@ export function LineChart({
       >
         {width > 0 && data.length > 0 && (
           <svg width={width} height={height}>
+            {guidePath && (
+              <path
+                d={guidePath}
+                fill="none"
+                stroke="var(--color-text-tertiary)"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                strokeLinecap="round"
+              />
+            )}
             {data.map((p) => (
               <circle
                 key={p.date}
@@ -135,7 +158,7 @@ export function LineChart({
               <path
                 d={linePath}
                 fill="none"
-                stroke="var(--color-text-primary)"
+                stroke={color}
                 strokeWidth={2}
                 strokeLinejoin="round"
                 strokeLinecap="round"
@@ -146,7 +169,7 @@ export function LineChart({
                 cx={xFor(avg[avg.length - 1])}
                 cy={yFor(avg[avg.length - 1])}
                 r={4}
-                fill="var(--color-text-primary)"
+                fill={color}
               />
             )}
           </svg>

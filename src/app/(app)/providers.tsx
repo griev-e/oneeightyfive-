@@ -8,6 +8,10 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { get, set, del } from "idb-keyval";
 import { ToastProvider } from "@/components/ui/toast";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker";
+import {
+  registerMutationDefaults,
+  shouldPersistMutation,
+} from "@/lib/mutation-defaults";
 
 const noopSubscribe = () => () => {};
 
@@ -27,21 +31,24 @@ function ClientGate({ children }: { children: React.ReactNode }) {
 }
 
 /** Query cache persists to IndexedDB so a cold PWA launch paints instantly. */
-const CACHE_BUSTER = "v2";
+const CACHE_BUSTER = "v3";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [client] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 5 * 60_000,
-            retry: 1,
-            refetchOnWindowFocus: true,
-          },
+  const [client] = useState(() => {
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 5 * 60_000,
+          retry: 1,
+          refetchOnWindowFocus: true,
         },
-      }),
-  );
+        // offline → pause (and persist, for the queued keys), never fail
+        mutations: { networkMode: "online" },
+      },
+    });
+    registerMutationDefaults(qc);
+    return qc;
+  });
   const [persister] = useState(() =>
     createAsyncStoragePersister({
       storage: {
@@ -61,6 +68,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
             persister,
             maxAge: 30 * 24 * 3_600_000,
             buster: CACHE_BUSTER,
+            dehydrateOptions: { shouldDehydrateMutation: shouldPersistMutation },
+          }}
+          onSuccess={() => {
+            // replay writes queued before the last close (gym Wi-Fi survivors)
+            void client.resumePausedMutations();
           }}
         >
           <ToastProvider>{children}</ToastProvider>

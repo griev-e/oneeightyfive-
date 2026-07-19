@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, type ChartPoint } from "@/components/charts/line-chart";
 import { useWeighIns, useLogWeight } from "@/hooks/use-weight";
 import { useSettings } from "@/hooks/use-settings";
-import { computePace, rollingAverage } from "@/lib/stats";
+import { computePace, projectionGuide, rollingAverage } from "@/lib/stats";
 import { addDays, getAppDate, formatShortDate } from "@/lib/dates";
 import { formatPace, formatWeight } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -50,6 +50,18 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
   }, [weighIns, range]);
 
   const avg = useMemo(() => rollingAverage(visible), [visible]);
+
+  // dashed goal-rate guide from the latest trend point — the pace to beat
+  const guide = useMemo(
+    () =>
+      projectionGuide(
+        avg[avg.length - 1],
+        settings.goalRateLbsPerWeek,
+        28,
+        settings.goalWeightLbs,
+      ),
+    [avg, settings.goalRateLbsPerWeek, settings.goalWeightLbs],
+  );
 
   const shown = scrub ?? latest;
   const toGoal =
@@ -154,6 +166,7 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
             <LineChart
               data={visible}
               avg={avg}
+              guide={guide}
               isActive={isActive}
               onScrub={setScrub}
             />

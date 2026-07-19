@@ -11,6 +11,7 @@ import { CheckDraw } from "@/components/ui/check-draw";
 import { PRBadge } from "@/components/ui/pr-badge";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
 import { SetEditSheet } from "@/components/lift/set-edit-sheet";
+import { ExerciseTrend } from "@/components/lift/exercise-trend";
 import {
   useArchiveExercise,
   useCreateExercise,
@@ -194,12 +195,15 @@ export function LiftPanel() {
         </Screen>
       </div>
 
-      {/* iPad: persistent detail column placeholder */}
-      <div className="hidden h-full items-center justify-center lg:flex">
+      {/* iPad: persistent detail column — today's exercise trend until a pick */}
+      <div className="hidden h-full lg:block">
         {!selected && (
-          <span className="type-body text-text-tertiary">
-            Choose an exercise
-          </span>
+          <IdlePane
+            exercise={
+              exercises.find((e) => setsByExercise.has(e.id)) ?? null
+            }
+            date={date}
+          />
         )}
       </div>
 
@@ -223,6 +227,32 @@ export function LiftPanel() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/** The wide-layout resting state: the trend of whatever was trained today. */
+function IdlePane({
+  exercise,
+  date,
+}: {
+  exercise: Exercise | null;
+  date: string;
+}) {
+  const { data: history } = useExerciseHistory(exercise?.id ?? null, date);
+  if (!exercise || !history || history.recent.length < 2) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <span className="type-body text-text-tertiary">Choose an exercise</span>
+      </div>
+    );
+  }
+  return (
+    <div className="h-full min-h-0 overflow-y-auto overscroll-contain px-screen pb-tab-clearance">
+      <div className="mx-auto max-w-2xl pt-[calc(env(safe-area-inset-top)+20px)]">
+        <h2 className="type-title mt-1">{exercise.name}</h2>
+        <ExerciseTrend history={history} />
+      </div>
     </div>
   );
 }
@@ -420,6 +450,8 @@ function ExerciseDetail({
             Complete set
           </Button>
         </Card>
+
+        {history !== undefined && <ExerciseTrend history={history} />}
 
         <div className="mt-6">
           <ConfirmSwap

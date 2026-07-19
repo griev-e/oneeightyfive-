@@ -64,7 +64,10 @@ export function useFoodSuggestions(date: string) {
 export function useLogFood(date: string) {
   const qc = useQueryClient();
   const toast = useToast();
-  return useMutation({
+  const mutation = useMutation({
+    // keyed for the offline queue — a paused log persists and replays later,
+    // so the variables must carry everything (date, loggedAt) themselves
+    mutationKey: ["log-food"],
     mutationFn: (input: FoodLogInput) =>
       fetchJson<FoodLog>("/api/food-logs", { method: "POST", ...jsonBody(input) }),
     onMutate: async (input) => {
@@ -114,6 +117,22 @@ export function useLogFood(date: string) {
       // deliberately NOT ['meals'] — the quick-add rail must not resort mid-use
     },
   });
+
+  // stamp loggedAt into the VARIABLES (not just the optimistic row) so a
+  // queued log replayed after a relaunch keeps its tap-time timestamp
+  const stamp = (input: FoodLogInput): FoodLogInput => ({
+    loggedAt: new Date().toISOString(),
+    ...input,
+  });
+  return {
+    ...mutation,
+    mutate: (input: FoodLogInput, options?: Parameters<typeof mutation.mutate>[1]) =>
+      mutation.mutate(stamp(input), options),
+    mutateAsync: (
+      input: FoodLogInput,
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => mutation.mutateAsync(stamp(input), options),
+  };
 }
 
 type BatchFoodInput = Omit<FoodLogInput, "date" | "loggedAt">;

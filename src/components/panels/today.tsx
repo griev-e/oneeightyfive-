@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Settings2 } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
+import { PlanView } from "@/components/plan/plan-view";
 import { useTabSwitch } from "@/components/shell/tab-shell";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { MacroGrid } from "@/components/ui/macro-grid";
@@ -19,11 +20,11 @@ import { useSettings } from "@/hooks/use-settings";
 import { useProfile } from "@/hooks/use-profile";
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useAppDate } from "@/hooks/use-app-date";
-import { computePace, rollingAverage } from "@/lib/stats";
+import { computePace, rollingAverage, sessionVolume } from "@/lib/stats";
 import { computeStreak, streakSeries } from "@/lib/streaks";
-import { formatFullDate } from "@/lib/dates";
+import { daysBetween, formatFullDate } from "@/lib/dates";
 import { formatInt, formatPace, formatWeight } from "@/lib/format";
-import { springs } from "@/lib/motion";
+import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import { useRouter } from "next/navigation";
 
@@ -79,10 +80,46 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
     [weighIns],
   );
 
+  const todayVolume = useMemo(() => sessionVolume(sets), [sets]);
+  // most recent past training day — context for a rest-day tile
+  const lastSessionGap = useMemo(() => {
+    const past = summaries.trainingDates.filter((d) => d < date);
+    if (past.length === 0) return null;
+    return daysBetween(past[past.length - 1], date);
+  }, [summaries.trainingDates, date]);
+
   const needsSetup = profile !== undefined && profile.completedAt === null;
 
+  // the plan drill-in lives in history so the iOS edge back-swipe dismisses it
+  const [planOpen, setPlanOpen] = useState(false);
+  const openPlan = () => {
+    setPlanOpen(true);
+    window.history.pushState({ plan: true }, "", window.location.pathname);
+  };
+  useEffect(() => {
+    const onPop = () => setPlanOpen(false);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   return (
-    <Screen label={formatFullDate(date)} title="Today">
+    <div className="relative h-full">
+    <Screen
+      label={formatFullDate(date)}
+      title="Today"
+      trailing={
+        <motion.button
+          type="button"
+          aria-label="Plan and settings"
+          onClick={openPlan}
+          whileTap={{ scale: press.icon }}
+          transition={springs.instant}
+          className="-mr-2 flex size-11 items-center justify-center text-text-secondary"
+        >
+          <Settings2 size={20} strokeWidth={1.75} />
+        </motion.button>
+      }
+    >
       {/* hero: today's calories */}
       <button
         type="button"
@@ -224,6 +261,15 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
               "No session yet"
             )}
           </div>
+          <div className="type-footnote mt-1 tabular-nums text-text-secondary">
+            {sets.length > 0 && todayVolume > 0
+              ? `${formatInt(todayVolume)} lb moved`
+              : lastSessionGap !== null
+                ? lastSessionGap === 1
+                  ? "Last session yesterday"
+                  : `Last session ${lastSessionGap} days ago`
+                : " "}
+          </div>
         </PressableCard>
       </div>
 
@@ -268,5 +314,21 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
         streakCount={streak.count}
       />
     </Screen>
+
+    <AnimatePresence>
+      {planOpen && (
+        <motion.div
+          key="plan"
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={springs.sheet}
+          className="absolute inset-0 z-10 bg-canvas"
+        >
+          <PlanView onBack={() => window.history.back()} />
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </div>
   );
 }
