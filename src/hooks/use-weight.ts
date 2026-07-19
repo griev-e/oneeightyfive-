@@ -40,3 +40,28 @@ export function useLogWeight() {
     },
   });
 }
+
+/** Unkeyed on purpose — deletes fail-and-rollback offline, never queue. */
+export function useDeleteWeighIn() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: (date: string) =>
+      fetchJson<{ ok: true }>(`/api/weight/${date}`, { method: "DELETE" }),
+    onMutate: async (date) => {
+      await qc.cancelQueries({ queryKey: ["weigh-ins"] });
+      const prev = qc.getQueryData<WeighIn[]>(["weigh-ins"]);
+      qc.setQueryData<WeighIn[]>(["weigh-ins"], (old = []) =>
+        old.filter((p) => p.date !== date),
+      );
+      return { prev };
+    },
+    onError: (_err, _date, ctx) => {
+      qc.setQueryData(["weigh-ins"], ctx?.prev);
+      toast.show("Couldn't delete — try again");
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["weigh-ins"] });
+    },
+  });
+}

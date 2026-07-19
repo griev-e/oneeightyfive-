@@ -7,7 +7,7 @@ import { LineChart, type ChartPoint } from "@/components/charts/line-chart";
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useSettings } from "@/hooks/use-settings";
 import { useAppDate } from "@/hooks/use-app-date";
-import { nutritionSeries, type MacroKey } from "@/lib/history";
+import { macroAdherence, nutritionSeries, type MacroKey } from "@/lib/history";
 import { formatShortDate } from "@/lib/dates";
 import { formatInt } from "@/lib/format";
 
@@ -35,17 +35,46 @@ export function NutritionHistory({ isActive }: { isActive: boolean }) {
   const summaries = useDaySummaries();
 
   const [mode, setMode] = useState<MacroKey>("calories");
+  const [windowDays, setWindowDays] = useState<"30" | "90">("30");
   const [scrubbed, setScrubbed] = useState<ChartPoint | null>(null);
+
+  const fallback = useMemo(
+    () => ({
+      calories: settings.calorieTarget,
+      protein: settings.proteinTargetG,
+      carbs: settings.carbTargetG,
+      fat: settings.fatTargetG,
+    }),
+    [settings],
+  );
 
   const series = useMemo(
     () =>
-      nutritionSeries(summaries.days, summaries.targets, mode, today, {
-        calories: settings.calorieTarget,
-        protein: settings.proteinTargetG,
-        carbs: settings.carbTargetG,
-        fat: settings.fatTargetG,
-      }),
-    [summaries.days, summaries.targets, mode, today, settings],
+      nutritionSeries(
+        summaries.days,
+        summaries.targets,
+        mode,
+        today,
+        fallback,
+        Number(windowDays),
+      ),
+    [summaries.days, summaries.targets, mode, today, fallback, windowDays],
+  );
+
+  // carbs are a remainder, never judged — no adherence line for them
+  const adherence = useMemo(
+    () =>
+      mode === "carbs"
+        ? null
+        : macroAdherence(
+            summaries.days,
+            summaries.targets,
+            mode,
+            today,
+            fallback,
+            Number(windowDays),
+          ),
+    [summaries.days, summaries.targets, mode, today, fallback, windowDays],
   );
 
   if (series.data.length === 0) return null;
@@ -54,7 +83,24 @@ export function NutritionHistory({ isActive }: { isActive: boolean }) {
 
   return (
     <section className="mt-10">
-      <div className="type-label mb-2 text-text-tertiary">Last 30 days</div>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="type-label text-text-tertiary">
+          Last {windowDays} days
+        </span>
+        <div className="w-28">
+          <Segmented
+            options={[
+              { id: "30", label: "30d" },
+              { id: "90", label: "90d" },
+            ]}
+            value={windowDays}
+            onChange={(w) => {
+              setWindowDays(w);
+              setScrubbed(null);
+            }}
+          />
+        </div>
+      </div>
       <Card className="p-4">
         <div className="flex items-baseline justify-between">
           <div className="flex items-baseline gap-1.5">
@@ -88,6 +134,11 @@ export function NutritionHistory({ isActive }: { isActive: boolean }) {
             }}
           />
         </div>
+        {adherence !== null && adherence.logged > 0 && (
+          <div className="type-footnote mt-3 tabular-nums text-text-tertiary">
+            Hit target {adherence.hit} of {adherence.logged} logged days
+          </div>
+        )}
       </Card>
     </section>
   );

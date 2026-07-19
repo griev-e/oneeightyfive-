@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "./fetch-json";
 import { addDays } from "@/lib/dates";
+import type { LiftDay } from "@/lib/stats";
 import type { TargetRow } from "@/lib/streaks";
 import { useAppDate } from "./use-app-date";
 
@@ -17,9 +18,15 @@ export type DaySummaries = {
   }[];
   targets: TargetRow[];
   trainingDates: string[];
+  liftDays: LiftDay[];
 };
 
-const EMPTY: DaySummaries = { days: [], targets: [], trainingDates: [] };
+const EMPTY: DaySummaries = {
+  days: [],
+  targets: [],
+  trainingDates: [],
+  liftDays: [],
+};
 
 /** History for streaks + the training-week chip. Today's live numbers come
  *  from ['food-logs', today] — this feed is closed days only. */

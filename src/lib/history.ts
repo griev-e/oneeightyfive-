@@ -53,6 +53,35 @@ export type NutritionSeries = {
   guide: WeighIn[];
 };
 
+export type Adherence = { hit: number; logged: number };
+
+/**
+ * How often a closed, logged day met the target that ruled it. Unlogged
+ * days simply aren't counted — absence of data is not a miss here (the
+ * streak owns that judgment); this is "of the days you logged, how many
+ * landed". Today is always excluded (still in progress).
+ */
+export function macroAdherence(
+  days: DayMacros[],
+  targets: TargetRow[],
+  key: MacroKey,
+  today: string,
+  fallback: MacroTargets,
+  windowDays = 30,
+): Adherence {
+  const from = addDays(today, -windowDays);
+  let hit = 0;
+  let logged = 0;
+  for (const d of days) {
+    if (d.date < from || d.date >= today) continue;
+    logged += 1;
+    const row = targetRowFor(d.date, targets);
+    const target = row !== null ? targetOf(row, key) : fallback[key];
+    if (valueOf(d, key) >= target) hit += 1;
+  }
+  return { hit, logged };
+}
+
 export function nutritionSeries(
   days: DayMacros[],
   targets: TargetRow[],

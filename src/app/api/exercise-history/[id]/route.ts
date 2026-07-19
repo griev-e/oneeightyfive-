@@ -19,7 +19,7 @@ export async function GET(req: Request, ctx: Ctx) {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("workout_sets")
-    .select("date, weight_lbs, reps, set_number")
+    .select("date, weight_lbs, reps, set_number, rpe")
     .eq("exercise_id", id)
     .lt("date", today)
     .order("date", { ascending: false })
@@ -35,7 +35,7 @@ export async function GET(req: Request, ctx: Ctx) {
     date: lastDate,
     sets: data
       .filter((s) => s.date === lastDate)
-      .map((s) => ({ weightLbs: s.weight_lbs, reps: s.reps })),
+      .map((s) => ({ weightLbs: s.weight_lbs, reps: s.reps, rpe: s.rpe })),
   };
 
   let maxWeightLbs = 0;

@@ -9,7 +9,10 @@
  * and a stale cached API response would silently corrupt the day.
  */
 
-const CACHE = "surplus-shell-v1";
+// __SW_VERSION__ is stamped per build (scripts/stamp-sw.mjs) so every deploy
+// byte-diffs sw.js → the browser re-installs → activate purges stale caches.
+const VERSION = "__SW_VERSION__";
+const CACHE = `surplus-shell-${VERSION}`;
 const SHELL_URL = "/";
 
 self.addEventListener("install", (event) => {

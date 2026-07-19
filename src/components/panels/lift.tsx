@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Minus, Plus, Search } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ListRow } from "@/components/ui/list-row";
@@ -12,12 +13,15 @@ import { PRBadge } from "@/components/ui/pr-badge";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
 import { SetEditSheet } from "@/components/lift/set-edit-sheet";
 import { ExerciseTrend } from "@/components/lift/exercise-trend";
+import { RestTimer } from "@/components/lift/rest-timer";
+import { VolumeBars } from "@/components/charts/volume-bars";
 import {
   useArchiveExercise,
   useCreateExercise,
   useExercises,
   useExerciseHistory,
   useLogSet,
+  useRestoreExercise,
   useSets,
   type Exercise,
   type WorkoutSet,
@@ -25,17 +29,24 @@ import {
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useProfile } from "@/hooks/use-profile";
 import { useAppDate } from "@/hooks/use-app-date";
-import { classifySet, sessionVolume, type SetFlag } from "@/lib/stats";
+import { restTimer } from "@/hooks/use-rest-timer";
+import { useToast } from "@/components/ui/toast";
+import {
+  classifySet,
+  sessionVolume,
+  weeklyVolume,
+  type SetFlag,
+} from "@/lib/stats";
 import { startOfWeek, formatShortDate } from "@/lib/dates";
 import { formatInt } from "@/lib/format";
 import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
-export function LiftPanel() {
+export function LiftPanel({ isActive }: { isActive: boolean }) {
   const date = useAppDate();
   const { data: exercises = [], isPending } = useExercises();
   const { data: sets = [] } = useSets(date);
-  const { trainingDates } = useDaySummaries();
+  const { trainingDates, liftDays } = useDaySummaries();
   const { data: profile } = useProfile();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -71,6 +82,14 @@ export function LiftPanel() {
   const weekGoal = profile?.liftDaysPerWeek ?? null;
 
   const todayVolume = useMemo(() => sessionVolume(sets), [sets]);
+
+  const volumeWeeks = useMemo(
+    () => weeklyVolume(liftDays, sets, date),
+    [liftDays, sets, date],
+  );
+  const trainedRecently = volumeWeeks.some((w) => w.volumeLbs > 0);
+  const thisWeek = volumeWeeks[volumeWeeks.length - 1];
+  const lastWeek = volumeWeeks[volumeWeeks.length - 2];
 
   const q = query.trim();
   const ql = q.toLowerCase();
@@ -189,6 +208,33 @@ export function LiftPanel() {
               </Card>
             </>
           )}
+          {trainedRecently && (
+            <section className="mt-8">
+              <div className="type-label mb-2 text-text-tertiary">
+                Weekly volume
+              </div>
+              <Card className="p-4">
+                <div className="flex items-baseline gap-1.5">
+                  <AnimatedNumber
+                    value={thisWeek.volumeLbs}
+                    format={formatInt}
+                    className="type-stat"
+                  />
+                  <span className="type-footnote text-text-tertiary">
+                    lb this week
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <VolumeBars weeks={volumeWeeks} isActive={isActive} />
+                </div>
+                {lastWeek.volumeLbs > 0 && (
+                  <div className="type-footnote mt-2 tabular-nums text-text-secondary">
+                    vs {formatInt(lastWeek.volumeLbs)} lb last week
+                  </div>
+                )}
+              </Card>
+            </section>
+          )}
           <p className="type-footnote mt-3 text-text-tertiary">
             Beat the ghost — last session&apos;s numbers are the game.
           </p>
@@ -273,7 +319,12 @@ function ExerciseDetail({
   const { data: history } = useExerciseHistory(exercise.id, date);
   const logSet = useLogSet(date);
   const archive = useArchiveExercise();
+  const restore = useRestoreExercise();
+  const toast = useToast();
   const [editing, setEditing] = useState<WorkoutSet | null>(null);
+  const [effortOpen, setEffortOpen] = useState(false);
+  const [rpe, setRpe] = useState<number | null>(null);
+  const [note, setNote] = useState("");
 
   const lastSets = useMemo(
     () => history?.lastSession?.sets ?? [],
@@ -349,8 +400,15 @@ function ExerciseDetail({
             : history.lastSession
               ? `Last session (${formatShortDate(history.lastSession.date)}): ${
                   bodyweight
-                    ? lastSets.map((s) => s.reps).join(" · ")
-                    : lastSets.map((s) => `${s.weightLbs}×${s.reps}`).join(" · ")
+                    ? lastSets
+                        .map((s) => `${s.reps}${s.rpe != null ? ` @${s.rpe}` : ""}`)
+                        .join(" · ")
+                    : lastSets
+                        .map(
+                          (s) =>
+                            `${s.weightLbs}×${s.reps}${s.rpe != null ? ` @${s.rpe}` : ""}`,
+                        )
+                        .join(" · ")
                 }`
               : "First session — set the baseline"}
         </p>
@@ -392,6 +450,12 @@ function ExerciseDetail({
                       {set.weightLbs > 0
                         ? `${set.weightLbs} × ${set.reps}`
                         : `${set.reps} reps`}
+                      {set.rpe != null && (
+                        <span className="type-footnote text-text-tertiary">
+                          {" "}
+                          @ {set.rpe}
+                        </span>
+                      )}
                     </span>
                     <CheckDraw
                       checked
@@ -411,14 +475,18 @@ function ExerciseDetail({
             <span className="type-label text-text-tertiary">
               Set {setIndex + 1}
             </span>
-            {ghost && (
-              <span className="type-footnote tabular-nums text-text-tertiary">
-                Ghost:{" "}
-                {ghost.weightLbs > 0
-                  ? `${ghost.weightLbs} × ${ghost.reps}`
-                  : `${ghost.reps} reps`}
-              </span>
-            )}
+            <span className="flex items-baseline gap-3">
+              <RestTimer exerciseId={exercise.id} />
+              {ghost && (
+                <span className="type-footnote tabular-nums text-text-tertiary">
+                  Ghost:{" "}
+                  {ghost.weightLbs > 0
+                    ? `${ghost.weightLbs} × ${ghost.reps}`
+                    : `${ghost.reps} reps`}
+                  {ghost.rpe != null && ` @${ghost.rpe}`}
+                </span>
+              )}
+            </span>
           </div>
 
           <div className="flex items-start justify-center gap-6">
@@ -441,11 +509,70 @@ function ExerciseDetail({
             />
           </div>
 
+          {effortOpen ? (
+            <div className="mt-5 space-y-3">
+              <div className="flex min-h-11 items-center justify-between">
+                <span className="type-footnote text-text-secondary">RPE</span>
+                <span className="flex items-center gap-2">
+                  <StepButton
+                    onClick={() =>
+                      setRpe((r) => (r === null ? 8 : Math.max(r - 0.5, 5)))
+                    }
+                    label="Decrease RPE"
+                  >
+                    <Minus size={18} strokeWidth={2} />
+                  </StepButton>
+                  <span className="type-headline w-12 text-center tabular-nums">
+                    {rpe ?? "—"}
+                  </span>
+                  <StepButton
+                    onClick={() =>
+                      setRpe((r) => (r === null ? 8 : Math.min(r + 0.5, 10)))
+                    }
+                    label="Increase RPE"
+                  >
+                    <Plus size={18} strokeWidth={2} />
+                  </StepButton>
+                </span>
+              </div>
+              <input
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Note — grip, tempo, pain…"
+                maxLength={200}
+                enterKeyHint="done"
+                className={cn(
+                  "type-body h-12 w-full rounded-md border border-border-subtle bg-overlay px-4",
+                  "text-text-primary placeholder:text-text-tertiary",
+                  "transition-colors duration-150 focus:border-border-strong",
+                )}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEffortOpen(true)}
+              className="type-footnote mt-5 flex min-h-11 items-center text-text-tertiary"
+            >
+              Add effort · note
+            </button>
+          )}
+
           <Button
             className="mt-5 w-full"
-            onClick={() =>
-              logSet.mutate({ exerciseId: exercise.id, weightLbs: weight, reps })
-            }
+            onClick={() => {
+              logSet.mutate({
+                exerciseId: exercise.id,
+                weightLbs: weight,
+                reps,
+                rpe,
+                note: note.trim() === "" ? null : note.trim(),
+              });
+              restTimer.start(exercise.id);
+              setRpe(null);
+              setNote("");
+            }}
           >
             Complete set
           </Button>
@@ -458,7 +585,12 @@ function ExerciseDetail({
             label="Archive exercise"
             confirmLabel="Archive"
             onConfirm={() => {
-              archive.mutate(exercise.id);
+              const { id, name } = exercise;
+              archive.mutate(id);
+              toast.show(`Archived ${name}`, {
+                label: "Undo",
+                onPress: () => restore.mutate(id),
+              });
               onArchived();
             }}
           />

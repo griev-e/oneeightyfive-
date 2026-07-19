@@ -56,6 +56,16 @@ export function formatShortDate(iso: string): string {
   return SHORT.format(fromISO(iso));
 }
 
+const MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+});
+
+/** "March 2027" — projection horizons, where a day would be false precision */
+export function formatMonthYear(iso: string): string {
+  return MONTH_YEAR.format(fromISO(iso));
+}
+
 /** Monday of the week containing the given app-day. */
 export function startOfWeek(iso: string): string {
   const d = fromISO(iso);

@@ -5,15 +5,33 @@ import { Screen } from "@/components/shell/screen";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ListRow } from "@/components/ui/list-row";
 import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { NumberPad } from "@/components/ui/number-pad";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, type ChartPoint } from "@/components/charts/line-chart";
+import { WeighInSheet } from "@/components/weight/weigh-in-sheet";
 import { useWeighIns, useLogWeight } from "@/hooks/use-weight";
 import { useSettings } from "@/hooks/use-settings";
-import { computePace, projectionGuide, rollingAverage } from "@/lib/stats";
-import { addDays, getAppDate, formatShortDate } from "@/lib/dates";
+import { useProfile } from "@/hooks/use-profile";
+import {
+  computePace,
+  projectionGuide,
+  rollingAverage,
+  type WeighIn,
+} from "@/lib/stats";
+import {
+  effectiveTrainingMonths,
+  planWeightLbs,
+  projectionSeries,
+} from "@/lib/plan";
+import {
+  addDays,
+  getAppDate,
+  formatMonthYear,
+  formatShortDate,
+} from "@/lib/dates";
 import { formatPace, formatWeight } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -21,17 +39,20 @@ const RANGES = [
   { id: "1w", label: "1W", days: 7 },
   { id: "1m", label: "1M", days: 30 },
   { id: "all", label: "All", days: Infinity },
+  { id: "goal", label: "Goal", days: Infinity },
 ] as const;
 
 export function WeightPanel({ isActive }: { isActive: boolean }) {
   const { data: weighIns = [], isPending } = useWeighIns();
   const settings = useSettings();
+  const { data: profile } = useProfile();
   const logWeight = useLogWeight();
 
   const [range, setRange] = useState<(typeof RANGES)[number]["id"]>("1m");
   const [scrub, setScrub] = useState<ChartPoint | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [entry, setEntry] = useState<string | null>(null);
+  const [editing, setEditing] = useState<WeighIn | null>(null);
 
   const latest = weighIns[weighIns.length - 1];
   const empty = !isPending && weighIns.length === 0;
@@ -51,23 +72,61 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
 
   const avg = useMemo(() => rollingAverage(visible), [visible]);
 
-  // dashed goal-rate guide from the latest trend point — the pace to beat
-  const guide = useMemo(
-    () =>
-      projectionGuide(
-        avg[avg.length - 1],
-        settings.goalRateLbsPerWeek,
-        28,
-        settings.goalWeightLbs,
+  // the long-horizon taper curve to the goal — needs a finished questionnaire
+  const canProject =
+    profile?.completedAt != null &&
+    profile.heightIn != null &&
+    profile.bulkStyle != null &&
+    profile.trainingMonths != null &&
+    profile.trainingMonthsAsOf != null &&
+    settings.goalWeightLbs !== null &&
+    weighIns.length > 0;
+
+  const projection = useMemo(() => {
+    if (range !== "goal" || !canProject || !profile || !latest) return null;
+    return projectionSeries(
+      planWeightLbs(weighIns, latest.weightLbs),
+      settings.goalWeightLbs!,
+      effectiveTrainingMonths(
+        profile.trainingMonths!,
+        profile.trainingMonthsAsOf!,
+        getAppDate(),
       ),
-    [avg, settings.goalRateLbsPerWeek, settings.goalWeightLbs],
-  );
+      profile.bulkStyle!,
+      profile.heightIn!,
+      settings.goalRateSource === "custom"
+        ? settings.goalRateLbsPerWeek
+        : null,
+      latest.date,
+    );
+  }, [range, canProject, profile, weighIns, latest, settings]);
+
+  // dashed guide: short-horizon pace line normally, the taper curve on Goal
+  const guide = useMemo(() => {
+    if (range === "goal") return projection ?? [];
+    return projectionGuide(
+      avg[avg.length - 1],
+      settings.goalRateLbsPerWeek,
+      28,
+      settings.goalWeightLbs,
+    );
+  }, [range, projection, avg, settings.goalRateLbsPerWeek, settings.goalWeightLbs]);
+
+  const projectedEnd =
+    projection && projection.length > 1 && projection.length - 1 < 260
+      ? projection[projection.length - 1]
+      : null;
 
   const shown = scrub ?? latest;
   const toGoal =
     settings.goalWeightLbs !== null && latest
       ? settings.goalWeightLbs - latest.weightLbs
       : null;
+
+  const recent = useMemo(
+    () => [...weighIns].slice(-10).reverse(),
+    [weighIns],
+  );
 
   const entryValue = entry ?? (latest ? formatWeight(latest.weightLbs) : "");
 
@@ -172,21 +231,52 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
             />
             <div className="mt-4">
               <Segmented
-                options={RANGES.map(({ id, label }) => ({ id, label }))}
+                options={RANGES.filter(
+                  ({ id }) => id !== "goal" || canProject,
+                ).map(({ id, label }) => ({ id, label }))}
                 value={range}
                 onChange={setRange}
               />
             </div>
           </Card>
 
-          {toGoal !== null && (
+          {range === "goal" && projectedEnd ? (
             <div className="type-footnote mt-3 tabular-nums text-text-tertiary">
-              Goal {formatWeight(settings.goalWeightLbs!)} lbs ·{" "}
-              {formatWeight(Math.max(toGoal, 0))} to go
+              On pace to pass {formatWeight(settings.goalWeightLbs!)} lbs
+              around {formatMonthYear(projectedEnd.date)}
             </div>
+          ) : (
+            toGoal !== null && (
+              <div className="type-footnote mt-3 tabular-nums text-text-tertiary">
+                Goal {formatWeight(settings.goalWeightLbs!)} lbs ·{" "}
+                {formatWeight(Math.max(toGoal, 0))} to go
+              </div>
+            )
+          )}
+
+          {recent.length > 0 && (
+            <section className="mt-8">
+              <div className="type-label mb-2 text-text-tertiary">History</div>
+              <Card className="divide-y divide-border-subtle p-0 px-3">
+                {recent.map((w) => (
+                  <ListRow
+                    key={w.date}
+                    title={formatShortDate(w.date)}
+                    trailing={
+                      <span className="type-body tabular-nums text-text-secondary">
+                        {formatWeight(w.weightLbs)} lbs
+                      </span>
+                    }
+                    onClick={() => setEditing(w)}
+                  />
+                ))}
+              </Card>
+            </section>
           )}
         </>
       )}
+
+      <WeighInSheet weighIn={editing} onClose={() => setEditing(null)} />
 
       <Sheet
         open={sheetOpen}

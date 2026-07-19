@@ -17,8 +17,10 @@ feature count.
   · `motion` (framer-motion v12, import from `motion/react`) · vaul · geist ·
   lucide-react · `@anthropic-ai/sdk` (food AI, server-only) · `@zxing/browser`
   (barcode scanning). Package manager: pnpm.
-- `pnpm dev` / `pnpm build` / `pnpm lint` / `pnpm start` · `npx vitest run`
-  (unit tests in `src/lib/__tests__/`)
+- `pnpm dev` / `pnpm build` / `pnpm lint` / `pnpm typecheck` / `pnpm start` ·
+  `npx vitest run` (unit tests in `src/lib/__tests__/`). `pnpm build` first
+  stamps `public/sw.js` (gitignored) from `scripts/sw.template.js` — edit the
+  template, never the stamped file.
 - `node scripts/generate-assets.mjs` regenerates icons + iOS splash screens
   (sharp; the mark is a rounded mint plus on near-black).
 - M2+: Supabase via MCP tools — author SQL in `supabase/migrations/`, apply with
@@ -320,3 +322,25 @@ enter-only fades/reveals).
   `LineChart` grew backwards-compatible `color`/`guide` props). Offline
   write queue per the Data rules bullet. `CACHE_BUSTER` → v3 (day-summaries
   shape + mutation persistence). `pnpm test` script added. Tests 171.
+- [x] **M7 — weekly insights + gym QoL + hardening**: weekly lift volume on
+  Lift (`stats.ts weeklyVolume` buckets the feed's new per-day `liftDays` by
+  Monday weeks, overlaying today's live sets; `charts/volume-bars.tsx` —
+  never mint, zero weeks are real zeros), macro adherence on Food
+  (`history.ts macroAdherence`, "hit X of Y logged days", carbs never
+  judged, 30d/90d window toggle), and a "Goal" range on the Weight chart
+  drawing `plan.ts projectionSeries` (the taper curve `projectTimeline` now
+  delegates to) with an "on pace to pass X around <month year>" footer.
+  Gym QoL: rest timer (`hooks/use-rest-timer.ts` module store — survives
+  tab switches/drill-in unmounts, wall-clock derived, mint at 3:00, not
+  persisted across relaunch) and optional per-set RPE (5–10 × 0.5) + note
+  (migration 0004; they ride the offline-queue VARIABLES; ghosts show last
+  session's RPE). Hardening: weigh-in history list with edit (idempotent
+  re-PUT) + delete/Undo (`DELETE /api/weight/[date]`, weight route on
+  shared validators); settings split — goal-field edits `PATCH` plainly
+  (no `apply_targets`, no `target_history`/`plan_events`, so a goal tweak
+  can't suppress recalibration or flip rate provenance; macro PUT re-reads
+  the server row before merging); delete-Undo parity on sets + exercise
+  archive (restore via `PATCH archived:false`); `HttpError.status` 409
+  detection; SW cache name stamped per build (`scripts/stamp-sw.mjs` →
+  gitignored `public/sw.js` — stale-shell fix). `CACHE_BUSTER` → v4.
+  `playwright-core` dropped, `pnpm typecheck` added (tsc clean). Tests 184.

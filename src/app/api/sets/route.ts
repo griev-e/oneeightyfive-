@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { asInt, asIsoDate, asNum, bad, oops, readBody } from "@/lib/api";
+import { asInt, asIsoDate, asNum, asShortText, bad, oops, readBody } from "@/lib/api";
+
+const SET_COLUMNS = "id, date, exercise_id, weight_lbs, reps, set_number, rpe, note";
 
 const toDto = (s: {
   id: string;
@@ -9,6 +11,8 @@ const toDto = (s: {
   weight_lbs: number;
   reps: number;
   set_number: number;
+  rpe: number | null;
+  note: string | null;
 }) => ({
   id: s.id,
   date: s.date,
@@ -16,6 +20,8 @@ const toDto = (s: {
   weightLbs: s.weight_lbs,
   reps: s.reps,
   setNumber: s.set_number,
+  rpe: s.rpe,
+  note: s.note,
 });
 
 export async function GET(req: Request) {
@@ -24,7 +30,7 @@ export async function GET(req: Request) {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("workout_sets")
-    .select("id, date, exercise_id, weight_lbs, reps, set_number")
+    .select(SET_COLUMNS)
     .eq("date", date)
     .order("exercise_id")
     .order("set_number");
@@ -39,6 +45,17 @@ export async function POST(req: Request) {
   const weightLbs = asNum(b.weightLbs, 0, 1500);
   const reps = asInt(b.reps, 1, 100);
   if (!date || !exerciseId || weightLbs === null || reps === null) return bad();
+  // rpe/note are optional — present-but-invalid is still a 400
+  let rpe: number | null = null;
+  if (b.rpe !== undefined && b.rpe !== null) {
+    rpe = asNum(b.rpe, 5, 10);
+    if (rpe === null) return bad();
+  }
+  let note: string | null = null;
+  if (b.note !== undefined && b.note !== null) {
+    note = asShortText(b.note, 200);
+    if (note === null) return bad();
+  }
 
   const supabase = supabaseServer();
   // server assigns set_number; one retry absorbs a same-moment double-log
@@ -60,8 +77,10 @@ export async function POST(req: Request) {
         weight_lbs: weightLbs,
         reps,
         set_number: setNumber,
+        rpe,
+        note,
       })
-      .select("id, date, exercise_id, weight_lbs, reps, set_number")
+      .select(SET_COLUMNS)
       .single();
     if (!error) return NextResponse.json(toDto(data));
     if (error.code !== "23505") return oops(error.message);

@@ -1,4 +1,4 @@
-import { addDays, daysBetween } from "./dates";
+import { addDays, daysBetween, startOfWeek } from "./dates";
 
 export type WeighIn = { date: string; weightLbs: number };
 
@@ -124,6 +124,50 @@ export function projectionGuide(
  */
 export function sessionVolume(sets: SetInput[]): number {
   return sets.reduce((sum, s) => sum + s.weightLbs * s.reps, 0);
+}
+
+export type LiftDay = { date: string; volumeLbs: number; sets: number };
+
+export type WeekVolume = {
+  /** Monday of the bucket's week */
+  weekStart: string;
+  volumeLbs: number;
+  sessions: number;
+};
+
+/**
+ * Weekly training tonnage, newest week last. Closed days come from the
+ * day-summaries feed; today is overlaid from the live sets cache instead
+ * (feed rows at/after `today` are dropped so nothing double-counts).
+ * Weeks with no training are real zeros — unlike intake, they're filled in.
+ */
+export function weeklyVolume(
+  liftDays: LiftDay[],
+  todaySets: SetInput[],
+  today: string,
+  weeks = 8,
+): WeekVolume[] {
+  const currentWeek = startOfWeek(today);
+  const buckets = new Map<string, WeekVolume>();
+  for (let i = weeks - 1; i >= 0; i--) {
+    const weekStart = addDays(currentWeek, -7 * i);
+    buckets.set(weekStart, { weekStart, volumeLbs: 0, sessions: 0 });
+  }
+  for (const day of liftDays) {
+    if (day.date >= today) continue;
+    const bucket = buckets.get(startOfWeek(day.date));
+    if (!bucket) continue;
+    bucket.volumeLbs += day.volumeLbs;
+    bucket.sessions += 1;
+  }
+  if (todaySets.length > 0) {
+    const bucket = buckets.get(currentWeek);
+    if (bucket) {
+      bucket.volumeLbs += sessionVolume(todaySets);
+      bucket.sessions += 1;
+    }
+  }
+  return [...buckets.values()];
 }
 
 /**

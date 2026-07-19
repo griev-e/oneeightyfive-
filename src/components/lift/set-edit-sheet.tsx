@@ -6,7 +6,13 @@ import { Minus, Plus } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
-import { useDeleteSet, useUpdateSet, type WorkoutSet } from "@/hooks/use-workouts";
+import { useToast } from "@/components/ui/toast";
+import {
+  useDeleteSet,
+  useLogSet,
+  useUpdateSet,
+  type WorkoutSet,
+} from "@/hooks/use-workouts";
 import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -36,8 +42,31 @@ function SetEditBody({
 }) {
   const [weight, setWeight] = useState(set.weightLbs);
   const [reps, setReps] = useState(set.reps);
+  const [rpe, setRpe] = useState<number | null>(set.rpe);
+  const [note, setNote] = useState(set.note ?? "");
   const update = useUpdateSet(date, set.exerciseId);
   const del = useDeleteSet(date, set.exerciseId);
+  const relog = useLogSet(date);
+  const toast = useToast();
+
+  const remove = () => {
+    const snapshot = set;
+    del.mutate(snapshot.id);
+    onClose();
+    // undo re-logs the set; it gets a fresh server-assigned number at the
+    // end of the session — set numbers keep gaps by design
+    toast.show("Deleted set", {
+      label: "Undo",
+      onPress: () =>
+        relog.mutate({
+          exerciseId: snapshot.exerciseId,
+          weightLbs: snapshot.weightLbs,
+          reps: snapshot.reps,
+          rpe: snapshot.rpe,
+          note: snapshot.note,
+        }),
+    });
+  };
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title="Edit set">
@@ -62,11 +91,54 @@ function SetEditBody({
             onIncrement={() => setReps((r) => Math.min(r + 1, 100))}
           />
         </div>
+        <div className="mt-5 flex min-h-11 items-center justify-between">
+          <span className="type-footnote text-text-secondary">RPE</span>
+          <span className="flex items-center gap-2">
+            <StepButton
+              onClick={() =>
+                setRpe((r) => (r === null ? 8 : Math.max(r - 0.5, 5)))
+              }
+              label="Decrease RPE"
+            >
+              <Minus size={18} strokeWidth={2} />
+            </StepButton>
+            <span className="type-headline w-12 text-center tabular-nums">
+              {rpe ?? "—"}
+            </span>
+            <StepButton
+              onClick={() =>
+                setRpe((r) => (r === null ? 8 : Math.min(r + 0.5, 10)))
+              }
+              label="Increase RPE"
+            >
+              <Plus size={18} strokeWidth={2} />
+            </StepButton>
+          </span>
+        </div>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Note — grip, tempo, pain…"
+          maxLength={200}
+          enterKeyHint="done"
+          className={cn(
+            "type-body mt-3 h-12 w-full rounded-md border border-border-subtle bg-overlay px-4",
+            "text-text-primary placeholder:text-text-tertiary",
+            "transition-colors duration-150 focus:border-border-strong",
+          )}
+        />
         <div className="mt-5 space-y-2">
           <Button
             className="w-full"
             onClick={() => {
-              update.mutate({ id: set.id, weightLbs: weight, reps });
+              update.mutate({
+                id: set.id,
+                weightLbs: weight,
+                reps,
+                rpe,
+                note: note.trim() === "" ? null : note.trim(),
+              });
               onClose();
             }}
           >
@@ -75,10 +147,7 @@ function SetEditBody({
           <ConfirmSwap
             label="Delete set"
             confirmLabel="Delete"
-            onConfirm={() => {
-              del.mutate(set.id);
-              onClose();
-            }}
+            onConfirm={remove}
           />
         </div>
       </div>

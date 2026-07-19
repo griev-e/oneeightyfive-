@@ -30,8 +30,9 @@ function ClientGate({ children }: { children: React.ReactNode }) {
   return mounted ? children : null;
 }
 
-/** Query cache persists to IndexedDB so a cold PWA launch paints instantly. */
-const CACHE_BUSTER = "v3";
+/** Query cache persists to IndexedDB so a cold PWA launch paints instantly.
+ *  v4: day-summaries grew liftDays; persisted log-set variables carry rpe/note. */
+const CACHE_BUSTER = "v4";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => {

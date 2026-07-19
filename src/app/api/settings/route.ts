@@ -32,8 +32,11 @@ export async function GET() {
 }
 
 /**
- * Manual target edits go through the same atomic RPC as the questionnaire —
- * hand-tweaks also write target_history, so streak fairness applies to them.
+ * Manual MACRO-target edits go through the same atomic RPC as the
+ * questionnaire — hand-tweaks also write target_history, so streak fairness
+ * applies to them. Goal fields are deliberately not accepted here: the RPC
+ * coalesces the omitted params to their current values, so a target edit
+ * never touches goal weight, pace, or rate provenance (that's PATCH's job).
  */
 export async function PUT(req: Request) {
   const b = await readBody(req);
@@ -51,13 +54,6 @@ export async function PUT(req: Request) {
   ) {
     return bad();
   }
-  const goalRate =
-    b.goalRateLbsPerWeek === undefined
-      ? undefined
-      : asNum(b.goalRateLbsPerWeek, 0, 1);
-  const goalWeight =
-    b.goalWeightLbs === undefined ? undefined : asNum(b.goalWeightLbs, 80, 400);
-  if (goalRate === null || goalWeight === null) return bad();
 
   const supabase = supabaseServer();
   const { error } = await supabase.rpc("apply_targets", {
@@ -66,9 +62,6 @@ export async function PUT(req: Request) {
     p_protein_target_g: proteinTargetG,
     p_carb_target_g: carbTargetG,
     p_fat_target_g: fatTargetG,
-    ...(goalRate !== undefined ? { p_goal_rate_lbs_per_week: goalRate } : {}),
-    ...(goalWeight !== undefined ? { p_goal_weight_lbs: goalWeight } : {}),
-    p_goal_rate_source: "custom",
     p_action: "applied",
   });
   if (error) return oops(error.message);
@@ -79,5 +72,46 @@ export async function PUT(req: Request) {
     .eq("id", 1)
     .single();
   if (readErr) return oops(readErr.message);
+  return NextResponse.json(toDto(data));
+}
+
+/**
+ * Goal-field edits — a plain settings update, no RPC. Changing your goal
+ * weight or pace writes no target_history row and no plan_event, so it can
+ * never suppress the recalibration card or pollute the plan audit trail.
+ */
+export async function PATCH(req: Request) {
+  const b = await readBody(req);
+  const update: {
+    goal_weight_lbs?: number;
+    goal_rate_lbs_per_week?: number;
+    goal_rate_source?: string;
+  } = {};
+  if (b.goalWeightLbs !== undefined) {
+    const v = asNum(b.goalWeightLbs, 80, 400);
+    if (v === null) return bad();
+    update.goal_weight_lbs = v;
+  }
+  if (b.goalRateLbsPerWeek !== undefined) {
+    const v = asNum(b.goalRateLbsPerWeek, 0.1, 2);
+    if (v === null) return bad();
+    update.goal_rate_lbs_per_week = v;
+  }
+  if (b.goalRateSource !== undefined) {
+    if (b.goalRateSource !== "recommended" && b.goalRateSource !== "custom") {
+      return bad();
+    }
+    update.goal_rate_source = b.goalRateSource;
+  }
+  if (Object.keys(update).length === 0) return bad("nothing to update");
+
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("settings")
+    .update(update)
+    .eq("id", 1)
+    .select("*")
+    .single();
+  if (error) return oops(error.message);
   return NextResponse.json(toDto(data));
 }
