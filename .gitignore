@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# service worker — stamped per build from scripts/sw.template.js
+/public/sw.js
+
 # production
 /build
 
