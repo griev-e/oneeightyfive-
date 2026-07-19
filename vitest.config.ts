@@ -5,5 +5,5 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
-  test: { include: ["src/**/__tests__/**/*.test.ts"] },
+  test: { include: ["src/**/__tests__/**/*.test.{ts,tsx}"] },
 });
