@@ -15,8 +15,10 @@ feature count.
 
 - Next.js 16 (App Router) · TypeScript · Tailwind v4 (CSS-first, no config file)
   · `motion` (framer-motion v12, import from `motion/react`) · vaul · geist ·
-  lucide-react. Package manager: pnpm.
-- `pnpm dev` / `pnpm build` / `pnpm lint` / `pnpm start`
+  lucide-react · `@anthropic-ai/sdk` (food AI, server-only) · `@zxing/browser`
+  (barcode scanning). Package manager: pnpm.
+- `pnpm dev` / `pnpm build` / `pnpm lint` / `pnpm start` · `npx vitest run`
+  (unit tests in `src/lib/__tests__/`)
 - `node scripts/generate-assets.mjs` regenerates icons + iOS splash screens
   (sharp; the mark is a rounded mint plus on near-black).
 - M2+: Supabase via MCP tools — author SQL in `supabase/migrations/`, apply with
@@ -136,7 +138,55 @@ enter-only fades/reveals).
   e1RM beats the positional ghost from last session. `serverRecords === null`
   means first-ever session — the whole day stays silent and sets baselines.
   Tiers per set: PR (gold badge) > overload win (mint ▲) > plain check. No
-  haptics — `navigator.vibrate` doesn't exist on iOS.
+  haptics — `navigator.vibrate` doesn't exist on iOS. `GET
+  /api/exercise-history/[id]` serves ghosts + records strictly BEFORE `today`
+  so ghosts never chase themselves; records are computed at read time.
+- `GET /api/day-summaries` is the one-round-trip history feed (per-day intake
+  sums with entry counts, full `target_history`, distinct training dates) that
+  powers streaks + the training-week chip via `hooks/use-day-summaries.ts`.
+  It is closed-days-only — today's live numbers come from `['food-logs',
+  today]`, never from this feed.
+
+## Food capture + suggestions
+
+- Five ways into the food entry sheet: catalog search, barcode scan, label
+  photo, meal photo, and natural-language description (typed or voice).
+  **Nothing ever auto-logs** — every capture result prefills the entry sheet
+  for review first. Client hooks live in `hooks/use-food-capture.ts`; the
+  mode picker UI is `components/food/food-capture.tsx`.
+- Catalog (`GET /api/food-search`, pure mappers in `lib/food-catalog.ts`):
+  Open Food Facts for text search + barcode lookup (no API key), USDA
+  FoodData Central for text search (`USDA_API_KEY` optional — falls back to
+  `DEMO_KEY` rate limits). USDA per-100g nutrients are scaled to household
+  servings; products without serving data get a usable fallback serving.
+  Search fires at ≥2 chars with 5-min staleTime.
+- Food AI (`lib/food-ai.ts`) runs on **Anthropic structured outputs** —
+  model `claude-sonnet-5` (`ANTHROPIC_FOOD_MODEL` overrides), effort `low`,
+  strict JSON schema (no range keywords — the API rejects them; clamping
+  lives in `normalizeAnalysis`). Three modes: `description`, `label` (one
+  stated serving, never the package), `meal-photo` (confidence is never
+  "high"). Routes `POST /api/food-ai/{describe,image}` export `maxDuration =
+  60`; the client is 25s/attempt + 1 retry to fit inside it. A missing
+  `ANTHROPIC_API_KEY` 503s (`FoodAiUnavailableError`) and the client toasts
+  "Food AI isn't set up" instead of "retry".
+- Voice: `components/food/voice-recorder.tsx` (MediaRecorder, 25s cap) →
+  `POST /api/food-ai/transcribe` → OpenAI `gpt-4o-mini-transcribe`
+  (Anthropic has no transcription API) → transcript feeds the describe flow.
+  `OPENAI_API_KEY` is optional — without it only voice 503s; every other
+  capture mode still works.
+- Camera images are downscaled client-side before upload (`lib/image.ts`,
+  max edge 1800px) — never send a full-res phone photo through a serverless
+  function. The barcode scanner (`components/food/barcode-scanner.tsx`,
+  `@zxing/browser`) starts the camera in a mount-only effect (it must not
+  restart on parent re-renders) and always offers manual barcode entry.
+- Predictive suggestions ("you usually log X around now"): ranking is pure in
+  `lib/food-suggestions.ts` — 1–42 day window, frequency + recency +
+  time-of-day + same-weekday scoring; identity key is `mealId` or normalized
+  name; nutrition always comes from the LATEST matching log, so correcting an
+  entry re-teaches future suggestions without rewriting history; "Quick add"
+  entries are excluded. `GET /api/food-suggestions` takes client-supplied
+  `date`/`hour`/`timezoneOffsetMinutes` (server never guesses local time).
+  `POST /api/food-logs/batch` logs multi-item picks in one call.
 
 ## Plan engine (lib/plan.ts)
 
@@ -159,8 +209,9 @@ enter-only fades/reveals).
   floor. Observed TDEE (from logged intake + weight trend, ≥"logged day"
   quality gates) blends into the formula confidence-weighted, clamped ±25%.
 - Projection = weekly simulation with tier taper; goal ≤ current weight puts
-  the plan in maintenance mode instead of bricking. 23 vitest tests pin the
-  numbers (`src/lib/__tests__/`) — run `npx vitest run` after touching math.
+  the plan in maintenance mode instead of bricking. 46 vitest tests pin the
+  numbers (`src/lib/__tests__/` — plan, streaks, recalibration, food-catalog,
+  food-suggestions) — run `npx vitest run` after touching any pure-math lib.
 - Recalibration UI ("your real TDEE looks like X — apply?") lives on Today
   (`components/today/recalibration-card.tsx`): `GET /api/recalibration`
   reruns `buildPlan` server-side with the observed blend and returns a
@@ -185,14 +236,22 @@ enter-only fades/reveals).
   `SUPABASE_SECRET_KEY` inside route handlers. Never put the secret key in
   client code or `NEXT_PUBLIC_*`. The `apply_targets` RPC is pinned
   (`search_path = ''`) with EXECUTE revoked from anon/authenticated/public.
-- Env vars (Vercel + `.env.local`): `PIN_LOCK`, `SUPABASE_URL`,
-  `SUPABASE_SECRET_KEY`.
+- Env vars (Vercel + `.env.local`): required — `PIN_LOCK`, `SUPABASE_URL`,
+  `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY`; optional —
+  `ANTHROPIC_FOOD_MODEL`, `OPENAI_API_KEY` (voice transcription only),
+  `USDA_API_KEY`. All provider keys are server-only — never `NEXT_PUBLIC_*`.
 
 ## PWA checklist
 
 - `viewport-fit=cover`; safe-areas: tab bar pads bottom, `Screen` and pushed
-  detail views pad top. `100dvh`/`fixed inset-0` shell; `overscroll-behavior-y:
-  none`.
+  detail views pad top; `overscroll-behavior-y: none`.
+- **iOS standalone viewport (hard-won — don't "simplify"):** `html`/`body`
+  are `height: 100vh` — NOT `100%`, NOT `100dvh` (both reproduce the
+  cold-start letterbox where the tab bar is clipped). The app shell is
+  `height: var(--app-height, 100vh)`; `shell/app-height.tsx` publishes live
+  `window.innerHeight` (plus `visualViewport` resize) as `--app-height`.
+  Never size the shell to `window.screen.*` — iOS refuses to paint below its
+  viewport line, so the paintable region is the only truth.
 - Icons `public/icons/`, splash `public/splash/` (generated — see scripts).
   Manifest name/short_name "Surplus", standalone, `#0A0A0B` everywhere.
 - Service worker lands with M4 (workout logging must survive gym connectivity);
@@ -212,14 +271,13 @@ enter-only fades/reveals).
   custom entry + save-as-meal, edit/delete + Undo, macro grid), live workout
   logging (ghost prefill, PR/overload tiers, first-session baselines,
   edit/archive), real streaks vs `target_history`, `plan_events` +
-  recalibration math (UI in M4), 23 unit tests. ← *awaiting user approval*
+  recalibration math (UI in M4), unit tests.
 - [x] **M4 — Workout polish + recalibration UI**: searchable exercise picker
   with inline create (type-to-create, no separate sheet), today's session
   volume chip on Lift + per-exercise chip in the detail, "your real TDEE"
   recalibration card on Today (`/api/recalibration` + `lib/recalibration.ts`
   cadence), iPad two-pane lift list/detail, minimal gym-connectivity service
-  worker (`public/sw.js`, shell + static only, never caches data). ←
-  *awaiting user approval*
+  worker (`public/sw.js`, shell + static only, never caches data).
 - [x] **M5 — Dashboard/streaks + hardening**: streak sparkline on Today
   (`charts/streak-rail.tsx` + pure `streakSeries` in `lib/streaks.ts`, mint =
   target-hit day), once-a-day surplus celebration (`today/surplus-celebration
@@ -227,4 +285,11 @@ enter-only fades/reveals).
   app-day, degrades under reduced motion), reduced-motion audit (rail +
   celebration + offline pill all honor `useReducedMotion`), offline polish
   (`use-online-status` + shell `OfflineIndicator` pill; SW already shells the
-  app for gym Wi-Fi). ← *awaiting user approval*
+  app for gym Wi-Fi).
+- [x] **Post-M5 — food capture + iOS fixes** (merged via PRs #7–#17):
+  predictive fast logging (`lib/food-suggestions.ts` + suggestions API),
+  universal food search + barcode/label/photo/voice capture (Open Food
+  Facts + USDA catalog, AI analysis), food AI migrated from OpenAI to
+  Anthropic `claude-sonnet-5` (voice transcription stays on OpenAI), iOS
+  standalone-PWA viewport fixes (`100vh` root + `--app-height` shell,
+  `shell/app-height.tsx`), barcode serving-size fallbacks. Tests now 46.
