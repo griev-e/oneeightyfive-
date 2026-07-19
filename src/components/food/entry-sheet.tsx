@@ -6,6 +6,7 @@ import { Check, ChevronLeft, Search } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ListRow } from "@/components/ui/list-row";
+import { NumberPad } from "@/components/ui/number-pad";
 import { MacroFields, type MacroValues } from "./macro-fields";
 import {
   BarcodeCapture,
@@ -107,6 +108,10 @@ export function EntrySheet({
   const [view, setView] = useState<SheetView>("browse");
   const [selected, setSelected] = useState<FoodChoice | null>(null);
   const [portion, setPortion] = useState(1);
+  // Amount entry for foods whose only known basis is 100 g (no serving in
+  // any database) — ½×–2× of 100 g can't reach a 473 ml bottle.
+  const [grams, setGrams] = useState(100);
+  const [gramsTouched, setGramsTouched] = useState(false);
   const [query, setQuery] = useState("");
   const [values, setValues] = useState<MacroValues>(EMPTY);
   const [name, setName] = useState("");
@@ -124,10 +129,19 @@ export function EntrySheet({
   const copyDay = useLogFoods(date);
   const createMeal = useCreateMeal();
 
+  const choose = (choice: FoodChoice) => {
+    setSelected(choice);
+    setPortion(1);
+    setGrams(100);
+    setGramsTouched(false);
+  };
+
   const reset = () => {
     setView("browse");
     setSelected(null);
     setPortion(1);
+    setGrams(100);
+    setGramsTouched(false);
     setQuery("");
     setValues(EMPTY);
     setName("");
@@ -183,6 +197,19 @@ export function EntrySheet({
     reset();
   };
 
+  const per100 = selected?.servingLabel === "100 g";
+  const scale = per100 ? grams / 100 : portion;
+
+  const handleGramsKey = (key: string) => {
+    const current = gramsTouched ? String(grams || "") : "";
+    let next: string;
+    if (key === "del") next = current.slice(0, -1);
+    else if (current.length >= 4) next = current;
+    else next = current + key;
+    setGramsTouched(true);
+    setGrams(next === "" ? 0 : parseInt(next, 10));
+  };
+
   const submitCustom = () => {
     if (values.calories < 1) return;
     const trimmed = name.trim();
@@ -231,15 +258,19 @@ export function EntrySheet({
               onClick={() => {
                 setSelected(null);
                 setPortion(1);
+                setGrams(100);
+                setGramsTouched(false);
               }}
             >
               <ChevronLeft size={20} strokeWidth={1.75} />
             </button>
             <div className="type-title">{selected.name}</div>
             <div className="type-footnote mt-1 text-text-tertiary">
-              {selected.servingLabel
-                ? `Nutrition per ${selected.servingLabel}`
-                : "Choose how much you had"}
+              {per100
+                ? "No serving on record — enter the amount you had"
+                : selected.servingLabel
+                  ? `Nutrition per ${selected.servingLabel}`
+                  : "Choose how much you had"}
             </div>
             {selected.detail && (
               <div className="type-footnote mt-2 text-text-secondary">
@@ -247,31 +278,53 @@ export function EntrySheet({
               </div>
             )}
 
-            <div className="mt-5 grid grid-cols-4 gap-2">
-              {PORTIONS.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  aria-pressed={portion === item.value}
-                  onClick={() => setPortion(item.value)}
-                  className={cn(
-                    "type-body h-11 rounded-md border bg-raised tabular-nums",
-                    portion === item.value
-                      ? "border-border-strong text-text-primary"
-                      : "border-border-subtle text-text-secondary",
-                  )}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            {per100 ? (
+              <div className="mt-5">
+                <div className="flex h-14 items-center justify-between rounded-md border border-border-strong bg-raised px-4">
+                  <span className="type-label text-text-tertiary">
+                    Amount · g or ml
+                  </span>
+                  <span
+                    className={cn(
+                      "type-headline tabular-nums",
+                      grams === 0 && "text-text-tertiary",
+                    )}
+                  >
+                    {grams}
+                  </span>
+                </div>
+                <div className="mt-3 -mx-4">
+                  <NumberPad onKey={handleGramsKey} decimal={false} />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 grid grid-cols-4 gap-2">
+                {PORTIONS.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    aria-pressed={portion === item.value}
+                    onClick={() => setPortion(item.value)}
+                    className={cn(
+                      "type-body h-11 rounded-md border bg-raised tabular-nums",
+                      portion === item.value
+                        ? "border-border-strong text-text-primary"
+                        : "border-border-subtle text-text-secondary",
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-            <MacroPreview food={scaleFood(selected, portion)} />
+            <MacroPreview food={scaleFood(selected, scale)} />
 
             <Button
               className="mt-5 w-full"
+              disabled={per100 && grams < 1}
               onClick={() => {
-                const food = scaleFood(selected, portion);
+                const food = scaleFood(selected, scale);
                 logFood.mutate({
                   date,
                   name: food.name,
@@ -284,13 +337,13 @@ export function EntrySheet({
                 close();
               }}
             >
-              Log {formatInt(scaleFood(selected, portion).calories)} cal
+              Log {formatInt(scaleFood(selected, scale).calories)} cal
             </Button>
             <Button
               variant="ghost"
               className="mt-1 w-full"
               onClick={() => {
-                const food = scaleFood(selected, portion);
+                const food = scaleFood(selected, scale);
                 setName(food.name);
                 setValues({
                   calories: food.calories,
@@ -332,15 +385,15 @@ export function EntrySheet({
                     : "Describe your food"}
             </div>
             {view === "barcode" ? (
-              <BarcodeCapture onFood={(food) => setSelected(catalogChoice(food))} />
+              <BarcodeCapture onFood={(food) => choose(catalogChoice(food))} />
             ) : view === "description" ? (
               <DescriptionCapture
-                onFood={(food) => setSelected(analysisChoice(food))}
+                onFood={(food) => choose(analysisChoice(food))}
               />
             ) : (
               <ImageCapture
                 mode={view}
-                onFood={(food) => setSelected(analysisChoice(food))}
+                onFood={(food) => choose(analysisChoice(food))}
               />
             )}
           </motion.div>
@@ -492,7 +545,7 @@ export function EntrySheet({
                           {formatInt(choice.calories)}
                         </span>
                       }
-                      onClick={() => setSelected(choice)}
+                      onClick={() => choose(choice)}
                     />
                   ))}
                 </div>

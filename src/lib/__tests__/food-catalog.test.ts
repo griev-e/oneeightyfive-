@@ -140,6 +140,31 @@ describe("mapUsdaFood", () => {
     });
   });
 
+  it("scales ml-based beverage servings (FDC MLT unit)", () => {
+    expect(
+      mapUsdaFood({
+        fdcId: 99,
+        description: "Green tea with honey",
+        servingSize: 360,
+        servingSizeUnit: "MLT",
+        householdServingFullText: "12 fl oz",
+        gtinUpc: "00048500201985",
+        foodNutrients: [
+          { nutrientNumber: "1008", value: 19.4 },
+          { nutrientNumber: "1003", value: 0 },
+          { nutrientNumber: "1005", value: 5.28 },
+          { nutrientNumber: "1004", value: 0 },
+        ],
+      }),
+    ).toMatchObject({
+      servingLabel: "12 fl oz",
+      calories: 70,
+      proteinG: 0,
+      carbsG: 19,
+      fatG: 0,
+    });
+  });
+
   it("scales branded nutrition to its household serving", () => {
     expect(
       mapUsdaFood({
