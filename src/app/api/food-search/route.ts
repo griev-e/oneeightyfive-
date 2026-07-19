@@ -38,6 +38,38 @@ async function lookupBarcode(barcode: string): Promise<CatalogFood[]> {
   return product ? [product] : [];
 }
 
+/** USDA branded foods often carry the serving OFF lacks (e.g. "1 bottle").
+ * gtinUpc is stored as a zero-padded GTIN-14, so search the padded form and
+ * verify the match — the endpoint is full-text, not a barcode index. */
+async function lookupBarcodeUsda(barcode: string): Promise<CatalogFood[]> {
+  const apiKey = process.env.USDA_API_KEY || "DEMO_KEY";
+  const response = await fetch(
+    `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(8_000),
+      body: JSON.stringify({
+        query: barcode.padStart(14, "0"),
+        pageSize: 5,
+        dataType: ["Branded"],
+      }),
+    },
+  );
+  if (!response.ok) return [];
+  const body = (await response.json()) as { foods?: UsdaFood[] };
+  const scanned = barcode.replace(/^0+/, "");
+  return (body.foods ?? [])
+    .filter(
+      (food) =>
+        typeof food.gtinUpc === "string" &&
+        food.gtinUpc.replace(/^0+/, "") === scanned,
+    )
+    .map(mapUsdaFood)
+    .filter((food): food is CatalogFood => food !== null);
+}
+
 async function searchOpenFoodFacts(query: string): Promise<CatalogFood[]> {
   const url = new URL("https://world.openfoodfacts.org/cgi/search.pl");
   url.searchParams.set("search_terms", query);
@@ -90,7 +122,20 @@ export async function GET(req: Request) {
   const barcode = params.get("barcode")?.trim() ?? "";
   if (barcode) {
     if (!/^\d{6,14}$/.test(barcode)) return bad("invalid barcode");
-    const foods = await lookupBarcode(barcode).catch(() => []);
+    const [off, usda] = await Promise.allSettled([
+      lookupBarcode(barcode),
+      lookupBarcodeUsda(barcode),
+    ]);
+    const candidates = [
+      ...(off.status === "fulfilled" ? off.value : []),
+      ...(usda.status === "fulfilled" ? usda.value : []),
+    ];
+    // A "100 g" label means the source had no serving data — a real serving
+    // from either source beats it (drinks otherwise log ~1/5 of a bottle).
+    const withServing = candidates.filter(
+      (food) => food.servingLabel !== "100 g",
+    );
+    const foods = (withServing.length > 0 ? withServing : candidates).slice(0, 1);
     return NextResponse.json(
       { foods },
       { headers: { "cache-control": "private, max-age=3600" } },

@@ -146,15 +146,22 @@ export function mapUsdaFood(food: UsdaFood): CatalogFood | null {
       : null);
   if (!id || !name || calories === null || calories <= 0) return null;
   const servingSize = finite(food.servingSize);
-  const servingUnit = text(food.servingSizeUnit);
+  // FDC unit codes: g/GRM for solids, ml/MLT for liquids. Branded nutrients
+  // are normalized per 100 g or 100 ml on the same axis, so both scale.
+  const servingUnit =
+    text(food.servingSizeUnit)?.toLocaleLowerCase("en-US") ?? null;
+  const unitSuffix =
+    servingUnit === "g" || servingUnit === "grm"
+      ? "g"
+      : servingUnit === "ml" || servingUnit === "mlt"
+        ? "ml"
+        : null;
   const canScaleServing =
-    servingSize !== null &&
-    servingSize > 0 &&
-    servingUnit?.toLocaleLowerCase("en-US") === "g";
+    servingSize !== null && servingSize > 0 && unitSuffix !== null;
   const scale = canScaleServing ? servingSize / 100 : 1;
   const servingLabel =
     (canScaleServing && text(food.householdServingFullText)) ||
-    (canScaleServing ? `${servingSize} g` : "100 g");
+    (canScaleServing ? `${servingSize} ${unitSuffix}` : "100 g");
 
   return {
     id: `usda:${id}`,
