@@ -18,6 +18,7 @@ export type OpenFoodFactsProduct = {
   product_name?: unknown;
   brands?: unknown;
   serving_size?: unknown;
+  serving_quantity?: unknown;
   nutriments?: Nutriments;
 };
 
@@ -54,12 +55,32 @@ function rounded(value: number | null): number {
   return Math.max(0, Math.round(value ?? 0));
 }
 
-function nutrient(
+function positive(value: unknown): number | null {
+  const parsed =
+    typeof value === "string" && value.trim() ? Number(value) : value;
+  const quantity = finite(parsed);
+  return quantity !== null && quantity > 0 ? quantity : null;
+}
+
+function per100g(nutriments: Nutriments, key: string): number | null {
+  // OFF mirrors the per-100g value onto the bare key.
+  return finite(nutriments[`${key}_100g`]) ?? finite(nutriments[key]);
+}
+
+/** Per-serving value, scaled from 100 g when the explicit key is missing.
+ * Never the bare key: OFF fills it per 100 g, and mixing bases is how a 39 g
+ * serving ends up wearing 100 g macros. */
+function perServing(
   nutriments: Nutriments,
   key: string,
-  basis: "serving" | "100g",
+  servingQuantity: number | null,
 ): number | null {
-  return finite(nutriments[`${key}_${basis}`]) ?? finite(nutriments[key]);
+  const explicit = finite(nutriments[`${key}_serving`]);
+  if (explicit !== null) return explicit;
+  const base = per100g(nutriments, key);
+  return base !== null && servingQuantity !== null
+    ? (base * servingQuantity) / 100
+    : null;
 }
 
 export function mapOpenFoodFactsProduct(
@@ -68,15 +89,19 @@ export function mapOpenFoodFactsProduct(
   const name = text(product.product_name);
   const barcode = text(product.code);
   const nutriments = product.nutriments ?? {};
+  const servingSize = text(product.serving_size);
+  const servingQuantity = positive(product.serving_quantity);
   const hasServing =
-    text(product.serving_size) !== null &&
-    nutrient(nutriments, "energy-kcal", "serving") !== null;
-  const basis = hasServing ? "serving" : "100g";
-  const protein = nutrient(nutriments, "proteins", basis);
-  const carbs = nutrient(nutriments, "carbohydrates", basis);
-  const fat = nutrient(nutriments, "fat", basis);
+    servingSize !== null &&
+    perServing(nutriments, "energy-kcal", servingQuantity) !== null;
+  const value = hasServing
+    ? (key: string) => perServing(nutriments, key, servingQuantity)
+    : (key: string) => per100g(nutriments, key);
+  const protein = value("proteins");
+  const carbs = value("carbohydrates");
+  const fat = value("fat");
   const calories =
-    nutrient(nutriments, "energy-kcal", basis) ??
+    value("energy-kcal") ??
     (protein !== null || carbs !== null || fat !== null
       ? (protein ?? 0) * 4 + (carbs ?? 0) * 4 + (fat ?? 0) * 9
       : null);
@@ -88,7 +113,7 @@ export function mapOpenFoodFactsProduct(
     name,
     brand: text(product.brands),
     barcode,
-    servingLabel: hasServing ? text(product.serving_size)! : "100 g",
+    servingLabel: hasServing ? servingSize : "100 g",
     calories: Math.max(1, Math.round(calories)),
     proteinG: rounded(protein),
     carbsG: rounded(carbs),

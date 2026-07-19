@@ -4,6 +4,10 @@ import {
   FoodAiUnavailableError,
 } from "@/lib/food-ai";
 
+// Vision analysis regularly outlives the platform's default function
+// timeout; without this the reader 504s before OpenAI answers.
+export const maxDuration = 60;
+
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 

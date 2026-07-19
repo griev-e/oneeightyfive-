@@ -124,7 +124,13 @@ async function createAnalysis(
       store: false,
       instructions: `${BASE_INSTRUCTIONS}\n${MODE_INSTRUCTIONS[mode]}`,
       input: [{ role: "user", content }],
-      max_output_tokens: 500,
+      // Nutrition extraction needs no deep reasoning, and reasoning tokens
+      // count against max_output_tokens — at the default effort the budget is
+      // spent before any JSON is emitted and the response comes back
+      // incomplete. Low effort also keeps vision calls inside the route's
+      // maxDuration.
+      reasoning: { effort: "low" },
+      max_output_tokens: 2000,
       text: {
         verbosity: "low",
         format: {
@@ -137,8 +143,17 @@ async function createAnalysis(
     }),
   });
   if (!response.ok) throw new Error(`OpenAI responses API: ${response.status}`);
-  const raw = outputText(await response.json());
-  const analysis = raw ? normalizeAnalysis(JSON.parse(raw)) : null;
+  const payload = (await response.json()) as {
+    status?: unknown;
+    incomplete_details?: { reason?: unknown };
+  };
+  const raw = outputText(payload);
+  if (!raw) {
+    throw new Error(
+      `OpenAI returned no analysis text (status ${String(payload.status)}, reason ${String(payload.incomplete_details?.reason)})`,
+    );
+  }
+  const analysis = normalizeAnalysis(JSON.parse(raw));
   if (!analysis) throw new Error("OpenAI returned an invalid food analysis");
   return analysis;
 }
