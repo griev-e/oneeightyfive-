@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { LineChart, type ChartPoint } from "@/components/charts/line-chart";
+import { DayDetailSheet } from "@/components/history/day-detail-sheet";
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useSettings } from "@/hooks/use-settings";
 import { useAppDate } from "@/hooks/use-app-date";
@@ -37,6 +38,7 @@ export function NutritionHistory({ isActive }: { isActive: boolean }) {
   const [mode, setMode] = useState<MacroKey>("calories");
   const [windowDays, setWindowDays] = useState<"30" | "90">("30");
   const [scrubbed, setScrubbed] = useState<ChartPoint | null>(null);
+  const [openDay, setOpenDay] = useState<string | null>(null);
 
   const fallback = useMemo(
     () => ({
@@ -122,6 +124,7 @@ export function NutritionHistory({ isActive }: { isActive: boolean }) {
             height={160}
             isActive={isActive}
             onScrub={setScrubbed}
+            onSelect={(p) => setOpenDay(p.date)}
           />
         </div>
         <div className="mt-4">
@@ -140,6 +143,7 @@ export function NutritionHistory({ isActive }: { isActive: boolean }) {
           </div>
         )}
       </Card>
+      <DayDetailSheet date={openDay} onClose={() => setOpenDay(null)} />
     </section>
   );
 }

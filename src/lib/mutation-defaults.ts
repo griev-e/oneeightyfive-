@@ -65,21 +65,29 @@ export function registerMutationDefaults(qc: QueryClient) {
     void qc.invalidateQueries({ queryKey: ["day-summaries"] });
   };
 
+  // all three queued creates ride the same backoff — a transient 5xx during
+  // a replay must not silently drop a write that survived being offline
+  const RETRY = {
+    retry: 3,
+    retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8000),
+  };
+
   qc.setMutationDefaults(["log-weight"], {
+    ...RETRY,
     mutationFn: (w: WeighIn) =>
       fetchJson<WeighIn>("/api/weight", { method: "PUT", ...jsonBody(w) }),
     onSettled: reconcile,
   });
 
   qc.setMutationDefaults(["log-food"], {
+    ...RETRY,
     mutationFn: (input: LogFoodVars) =>
       fetchJson("/api/food-logs", { method: "POST", ...jsonBody(input) }),
     onSettled: reconcile,
   });
 
   qc.setMutationDefaults(["log-set"], {
-    retry: 3,
-    retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8000),
+    ...RETRY,
     mutationFn: (input: LogSetVars) =>
       fetchJson("/api/sets", { method: "POST", ...jsonBody(input) }),
     onSettled: reconcile,

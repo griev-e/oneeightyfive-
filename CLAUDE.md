@@ -344,3 +344,29 @@ enter-only fades/reveals).
   detection; SW cache name stamped per build (`scripts/stamp-sw.mjs` →
   gitignored `public/sw.js` — stale-shell fix). `CACHE_BUSTER` → v4.
   `playwright-core` dropped, `pnpm typecheck` added (tsc clean). Tests 184.
+- [x] **M8 — day history + data safety + hardening**: historical day
+  drill-in — tapping a nutrition-history day (LineChart grew a tap-vs-scrub
+  `onSelect`) opens `history/day-detail-sheet.tsx`: intake vs THAT day's
+  target (`targetRowFor`), macro grid, food log, training sets
+  (`hooks/use-day-detail.ts` reuses the live `['food-logs'|'sets', date]`
+  keys, so viewed days are cache-warm). Data safety: `GET /api/export` —
+  every table as one versioned JSON download (raw snake_case rows, paged
+  past PostgREST's 1000-row cap) — behind an "Export data" row in PlanView
+  (`hooks/use-export.ts` blob download, so the standalone PWA stays put).
+  Hardening: `app/error.tsx` + `global-error.tsx` + `not-found.tsx`
+  (dependency-light, calm, never red; Next 16 `unstable_retry`), CI
+  (`.github/workflows/ci.yml` — lint/typecheck/vitest), unlock brute-force
+  lockout (5 misses → 429, 30s doubling to 15min, per-instance memory; the
+  lock screen shows a quiet cooldown line), security headers in
+  `next.config.ts` (HSTS/nosniff/frame-deny/referrer/permissions —
+  camera+mic stay self), `.env.example` un-staled (Anthropic in, OpenAI
+  marked voice-only), offline-queue retry parity (log-weight/log-food get
+  log-set's ×3 backoff; `mutation-defaults` predicates now unit-tested).
+  Polish: manifest home-screen shortcuts (Log weight / Log food), "Reset
+  to recommended" in PlanView when targets are hand-tuned (through the
+  same `saveProfile` → `apply_targets` path), weight quick-log from the
+  Today card's corner "+" (weigh-in sheet extracted to
+  `weight/log-weight-sheet.tsx`). Streak-rail cells stay non-tappable by
+  design — 28 bars ≈ 12px targets would break the 44px touch minimum.
+  `.claude/skills/verify/SKILL.md` documents the local verify recipe.
+  Tests 188.

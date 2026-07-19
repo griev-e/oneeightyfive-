@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronRight, Settings2 } from "lucide-react";
+import { ChevronRight, Plus, Settings2 } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { PlanView } from "@/components/plan/plan-view";
 import { useTabSwitch } from "@/components/shell/tab-shell";
@@ -13,6 +13,7 @@ import { RecalibrationCard } from "@/components/today/recalibration-card";
 import { SurplusCelebration } from "@/components/today/surplus-celebration";
 import { Sparkline } from "@/components/charts/sparkline";
 import { StreakRail } from "@/components/charts/streak-rail";
+import { LogWeightSheet } from "@/components/weight/log-weight-sheet";
 import { useFoodLogs } from "@/hooks/use-food";
 import { useSets } from "@/hooks/use-workouts";
 import { useWeighIns } from "@/hooks/use-weight";
@@ -89,6 +90,8 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
   }, [summaries.trainingDates, date]);
 
   const needsSetup = profile !== undefined && profile.completedAt === null;
+
+  const [weighSheetOpen, setWeighSheetOpen] = useState(false);
 
   // the plan drill-in lives in history so the iOS edge back-swipe dismisses it
   const [planOpen, setPlanOpen] = useState(false);
@@ -221,7 +224,12 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
 
       {/* cards */}
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <PressableCard onClick={() => switchTab("weight")} className="p-5">
+        {/* quick-log sits OUTSIDE the pressable card — buttons don't nest */}
+        <div className="relative">
+        <PressableCard
+          onClick={() => switchTab("weight")}
+          className="h-full p-5"
+        >
           <div className="type-label mb-2 text-text-tertiary">Weight</div>
           <div className="flex items-baseline gap-1">
             <span className="type-stat">
@@ -248,6 +256,17 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
               : "Gathering data"}
           </div>
         </PressableCard>
+        <motion.button
+          type="button"
+          aria-label="Log weight"
+          onClick={() => setWeighSheetOpen(true)}
+          whileTap={{ scale: press.icon }}
+          transition={springs.instant}
+          className="absolute top-1 right-1 flex size-11 items-center justify-center text-text-tertiary"
+        >
+          <Plus size={18} strokeWidth={2} />
+        </motion.button>
+        </div>
 
         <PressableCard onClick={() => switchTab("lift")} className="p-5">
           <div className="type-label mb-1 text-text-tertiary">Lift</div>
@@ -313,6 +332,8 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
         date={date}
         streakCount={streak.count}
       />
+
+      <LogWeightSheet open={weighSheetOpen} onOpenChange={setWeighSheetOpen} />
     </Screen>
 
     <AnimatePresence>
