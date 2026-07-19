@@ -51,6 +51,61 @@ describe("mapOpenFoodFactsProduct", () => {
     });
   });
 
+  it("scales missing per-serving macros from 100 g via serving_quantity", () => {
+    // Real OFF shape (Cheerios): per-serving calories exist, but macros only
+    // per 100 g. The old bare-key fallback returned 100 g macros against a
+    // 39 g serving.
+    expect(
+      mapOpenFoodFactsProduct({
+        code: "0016000275287",
+        product_name: "Cheerios",
+        serving_size: "1 cup (39 g)",
+        serving_quantity: "39",
+        nutriments: {
+          "energy-kcal_serving": 140,
+          "energy-kcal_100g": 358.97,
+          "energy-kcal": 358.97,
+          proteins_100g: 12.8,
+          proteins: 12.8,
+          carbohydrates_100g: 74.36,
+          carbohydrates: 74.36,
+          fat_100g: 6.41,
+          fat: 6.41,
+        },
+      }),
+    ).toMatchObject({
+      servingLabel: "1 cup (39 g)",
+      calories: 140,
+      proteinG: 5,
+      carbsG: 29,
+      fatG: 2,
+    });
+  });
+
+  it("never leaks per-100g bare keys into a per-serving entry", () => {
+    expect(
+      mapOpenFoodFactsProduct({
+        code: "123456789012",
+        product_name: "Granola",
+        serving_size: "40 g",
+        nutriments: {
+          "energy-kcal_serving": 180,
+          // Bare keys are per 100 g in OFF; with no serving_quantity to
+          // scale by, unknown beats wrong.
+          proteins: 10,
+          carbohydrates: 60,
+          fat: 12,
+        },
+      }),
+    ).toMatchObject({
+      servingLabel: "40 g",
+      calories: 180,
+      proteinG: 0,
+      carbsG: 0,
+      fatG: 0,
+    });
+  });
+
   it("rejects products without usable calories", () => {
     expect(
       mapOpenFoodFactsProduct({

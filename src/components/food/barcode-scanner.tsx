@@ -13,18 +13,38 @@ export function BarcodeScanner({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const detectedRef = useRef(false);
+  const onDetectedRef = useRef(onDetected);
   const [manual, setManual] = useState("");
   const [cameraError, setCameraError] = useState(false);
 
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
+
+  // Mount-only: the camera must not restart when the parent re-renders
+  // (e.g. while the lookup mutation is pending).
   useEffect(() => {
     let stopped = false;
     let stopScanner: (() => void) | undefined;
     detectedRef.current = false;
 
     void import("@zxing/browser")
-      .then(async ({ BrowserMultiFormatReader }) => {
+      .then(async ({ BarcodeFormat, BrowserMultiFormatReader }) => {
         if (stopped || !videoRef.current) return;
-        const reader = new BrowserMultiFormatReader();
+        const reader = new BrowserMultiFormatReader(undefined, {
+          delayBetweenScanAttempts: 150,
+          delayBetweenScanSuccess: 150,
+        });
+        // Retail codes only — with every ZXing format enabled, a noisy frame
+        // can decode as e.g. CODE_39 and look up the wrong product.
+        reader.possibleFormats = [
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+        ];
+        let lastText = "";
+        let matches = 0;
         const controls = await reader.decodeFromConstraints(
           {
             audio: false,
@@ -33,9 +53,15 @@ export function BarcodeScanner({
           videoRef.current,
           (result, _error, scannerControls) => {
             if (!result || detectedRef.current) return;
+            // A single misread frame must never log food: accept a code only
+            // once two consecutive frames agree.
+            const text = result.getText();
+            matches = text === lastText ? matches + 1 : 1;
+            lastText = text;
+            if (matches < 2) return;
             detectedRef.current = true;
             scannerControls.stop();
-            onDetected(result.getText());
+            onDetectedRef.current(text);
           },
         );
         stopScanner = () => controls.stop();
@@ -49,7 +75,7 @@ export function BarcodeScanner({
       stopped = true;
       stopScanner?.();
     };
-  }, [onDetected]);
+  }, []);
 
   const submitManual = () => {
     const barcode = manual.replace(/\D/g, "");

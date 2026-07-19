@@ -2,6 +2,15 @@
  * All data flows through /api/* (PIN-gated, server-side Supabase). A 401
  * means the unlock cookie expired or PIN_LOCK rotated — bounce to /lock.
  */
+export class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    url: string,
+  ) {
+    super(`${url} → ${status}`);
+  }
+}
+
 export async function fetchJson<T>(
   url: string,
   init?: RequestInit,
@@ -11,7 +20,7 @@ export async function fetchJson<T>(
     window.location.replace("/lock");
     throw new Error("locked");
   }
-  if (!res.ok) throw new Error(`${url} → ${res.status}`);
+  if (!res.ok) throw new HttpError(res.status, url);
   return res.json() as Promise<T>;
 }
 

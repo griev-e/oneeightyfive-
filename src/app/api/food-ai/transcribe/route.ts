@@ -5,6 +5,10 @@ import {
   transcribeFoodAudio,
 } from "@/lib/food-ai";
 
+// Model calls regularly outlive the platform's default function
+// timeout; without this the request 504s before the model answers.
+export const maxDuration = 60;
+
 const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
 
 export async function POST(req: Request) {

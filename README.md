@@ -28,8 +28,9 @@ node scripts/generate-assets.mjs   # regenerate icons + iOS splash screens
 PIN_LOCK=….............# the 4-digit unlock PIN
 SUPABASE_URL=https://aqykznlpspuguvvoacpi.supabase.co
 SUPABASE_SECRET_KEY=…  # Supabase dashboard → Settings → API keys (secret)
-OPENAI_API_KEY=…       # label/photo/description/voice meal capture
-OPENAI_FOOD_MODEL=gpt-5.6-terra  # optional override
+ANTHROPIC_API_KEY=…    # label/photo/description meal capture (Claude)
+ANTHROPIC_FOOD_MODEL=claude-sonnet-5  # optional override
+OPENAI_API_KEY=…       # optional; voice transcription only — Anthropic has no transcription API
 USDA_API_KEY=…         # optional; raises USDA search limits above DEMO_KEY
 ```
 

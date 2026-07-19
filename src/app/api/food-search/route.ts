@@ -13,6 +13,7 @@ const OFF_FIELDS = [
   "product_name",
   "brands",
   "serving_size",
+  "serving_quantity",
   "nutriments",
 ].join(",");
 const USER_AGENT = "Surplus/1.0 personal-fitness-pwa";

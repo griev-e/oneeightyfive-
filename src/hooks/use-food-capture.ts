@@ -2,12 +2,20 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
-import { fetchJson, jsonBody } from "./fetch-json";
+import { fetchJson, HttpError, jsonBody } from "./fetch-json";
 import type { AnalyzedFood } from "@/lib/food-ai";
 import type { CatalogFood } from "@/lib/food-catalog";
 
 type CatalogResponse = { foods: CatalogFood[] };
 type AnalysisResponse = { food: AnalyzedFood };
+
+// The AI routes 503 when the provider key is missing — a setup problem, not a
+// bad photo, so don't tell the user to retry.
+function aiFailureMessage(error: unknown, fallback: string): string {
+  return error instanceof HttpError && error.status === 503
+    ? "Food AI isn't set up — add the API key"
+    : fallback;
+}
 
 export function useCatalogSearch(query: string) {
   return useQuery({
@@ -40,7 +48,8 @@ export function useDescribeFood() {
         method: "POST",
         ...jsonBody({ description }),
       }),
-    onError: () => toast.show("Couldn't estimate that — try more detail"),
+    onError: (error) =>
+      toast.show(aiFailureMessage(error, "Couldn't estimate that — try more detail")),
   });
 }
 
@@ -62,7 +71,8 @@ export function useAnalyzeFoodImage() {
         body: form,
       });
     },
-    onError: () => toast.show("Couldn't read that image — try again"),
+    onError: (error) =>
+      toast.show(aiFailureMessage(error, "Couldn't read that image — try again")),
   });
 }
 
@@ -83,6 +93,7 @@ export function useTranscribeFood() {
         { method: "POST", body: form },
       );
     },
-    onError: () => toast.show("Couldn't understand that recording"),
+    onError: (error) =>
+      toast.show(aiFailureMessage(error, "Couldn't understand that recording")),
   });
 }
