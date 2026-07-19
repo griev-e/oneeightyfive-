@@ -56,6 +56,7 @@ export function useSavePlan() {
       qc.setQueryData(["settings"], settings);
       void qc.invalidateQueries({ queryKey: ["day-summaries"] });
       void qc.invalidateQueries({ queryKey: ["weigh-ins"] });
+      void qc.invalidateQueries({ queryKey: ["plan-events"] });
     },
   });
 }

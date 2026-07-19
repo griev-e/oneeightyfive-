@@ -34,6 +34,8 @@ vi.mock("@/lib/supabase/server", () => ({ supabaseServer: () => client }));
 import { GET as weightGET, PUT as weightPUT } from "@/app/api/weight/route";
 import { GET as logsGET, POST as logsPOST } from "@/app/api/food-logs/route";
 import { GET as suggestGET } from "@/app/api/food-suggestions/route";
+import { GET as planEventsGET } from "@/app/api/plan-events/route";
+import { GET as daySummariesGET } from "@/app/api/day-summaries/route";
 import { POST as unlockPOST } from "@/app/api/unlock/route";
 import { UNLOCK_COOKIE, unlockToken } from "@/lib/auth";
 
@@ -208,6 +210,102 @@ describe("GET /api/food-suggestions — client supplies local time", () => {
     expect(Array.isArray(body.suggestions)).toBe(true);
     expect(body.yesterday).toHaveLength(1);
     expect(body.yesterday[0].name).toBe("Oats");
+  });
+});
+
+describe("GET /api/plan-events", () => {
+  it("returns the newest-first audit list as camelCase DTOs", async () => {
+    setResult({
+      data: [
+        {
+          id: "e1",
+          date: "2026-07-18",
+          action: "applied",
+          observed_tdee: 2900,
+          target_before: 2700,
+          target_suggested: 2850,
+          created_at: "2026-07-18T13:00:00Z",
+        },
+      ],
+      error: null,
+    });
+    const res = await planEventsGET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([
+      {
+        id: "e1",
+        date: "2026-07-18",
+        action: "applied",
+        observedTdee: 2900,
+        targetBefore: 2700,
+        targetSuggested: 2850,
+        createdAt: "2026-07-18T13:00:00Z",
+      },
+    ]);
+  });
+
+  it("returns an empty list when no events exist", async () => {
+    setResult({ data: [], error: null });
+    const res = await planEventsGET();
+    expect(await res.json()).toEqual([]);
+  });
+});
+
+describe("GET /api/day-summaries", () => {
+  it("requires a from param", async () => {
+    const res = await daySummariesGET(new Request("http://x/api/day-summaries"));
+    expect(res.status).toBe(400);
+  });
+
+  it("folds carbs and fat into the per-day sums", async () => {
+    // the shared mock answers every query with the same rows — one row that
+    // carries every column exercises all three folds at once
+    setResult({
+      data: [
+        {
+          date: "2026-07-17",
+          calories: 800,
+          protein_g: 40,
+          carbs_g: 90,
+          fat_g: 25,
+          effective_date: "2026-07-01",
+          calorie_target: 2700,
+          protein_target_g: 135,
+          carb_target_g: 360,
+          fat_target_g: 80,
+        },
+        {
+          date: "2026-07-17",
+          calories: 700,
+          protein_g: 35,
+          carbs_g: 60,
+          fat_g: 20,
+          effective_date: "2026-07-01",
+          calorie_target: 2700,
+          protein_target_g: 135,
+          carb_target_g: 360,
+          fat_target_g: 80,
+        },
+      ],
+      error: null,
+    });
+    const res = await daySummariesGET(
+      new Request("http://x/api/day-summaries?from=2026-07-01"),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.days).toEqual([
+      {
+        date: "2026-07-17",
+        calories: 1500,
+        proteinG: 75,
+        carbsG: 150,
+        fatG: 45,
+        entryCount: 2,
+      },
+    ]);
+    expect(body.targets[0]).toMatchObject({ carbTargetG: 360, fatTargetG: 80 });
+    expect(body.trainingDates).toEqual(["2026-07-17"]);
   });
 });
 

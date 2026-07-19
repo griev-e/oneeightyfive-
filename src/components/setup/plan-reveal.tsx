@@ -5,13 +5,15 @@ import { motion } from "motion/react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Sheet } from "@/components/ui/sheet";
-import { NumberPad } from "@/components/ui/number-pad";
+import {
+  EditValueSheet,
+  TARGET_META,
+  type ValueFieldMeta,
+} from "@/components/plan/edit-value-sheet";
 import { springs } from "@/lib/motion";
 import { formatInt } from "@/lib/format";
 import type { Plan } from "@/lib/plan";
 import { formatShortDate } from "@/lib/dates";
-import { cn } from "@/lib/cn";
 
 /**
  * The computed plan, staged in (opacity/rise only — the hero renders its
@@ -200,12 +202,12 @@ export function PlanReveal({
         </div>
       </motion.div>
 
-      <EditTargetSheet
-        field={editing}
-        values={values}
+      <EditValueSheet
+        meta={editing ? FIELD_META[editing] : null}
+        value={editing ? values[editing] : 0}
         onClose={() => setEditing(null)}
-        onSave={(field, v) => {
-          setValues((prev) => ({ ...prev, [field]: v }));
+        onSave={(v) => {
+          if (editing) setValues((prev) => ({ ...prev, [editing]: v }));
           setEditing(null);
         }}
       />
@@ -213,77 +215,9 @@ export function PlanReveal({
   );
 }
 
-const FIELD_META: Record<
-  keyof TargetOverrides,
-  { label: string; unit: string; min: number; max: number; digits: number }
-> = {
-  calorieTarget: { label: "Calories", unit: "cal", min: 1000, max: 10000, digits: 5 },
-  proteinG: { label: "Protein", unit: "g", min: 30, max: 500, digits: 3 },
-  carbG: { label: "Carbs", unit: "g", min: 50, max: 1200, digits: 4 },
-  fatG: { label: "Fat", unit: "g", min: 20, max: 400, digits: 3 },
+const FIELD_META: Record<keyof TargetOverrides, ValueFieldMeta> = {
+  calorieTarget: TARGET_META.calories,
+  proteinG: TARGET_META.protein,
+  carbG: TARGET_META.carbs,
+  fatG: TARGET_META.fat,
 };
-
-function EditTargetSheet({
-  field,
-  values,
-  onClose,
-  onSave,
-}: {
-  field: keyof TargetOverrides | null;
-  values: TargetOverrides;
-  onClose: () => void;
-  onSave: (field: keyof TargetOverrides, value: number) => void;
-}) {
-  const [entry, setEntry] = useState<string | null>(null);
-  if (!field) return null;
-  const meta = FIELD_META[field];
-  const shown = entry ?? String(values[field]);
-  const parsed = parseInt(shown || "0", 10);
-  const valid = parsed >= meta.min && parsed <= meta.max;
-
-  return (
-    <Sheet
-      open={field !== null}
-      onOpenChange={(o) => {
-        if (!o) {
-          setEntry(null);
-          onClose();
-        }
-      }}
-      title={`Edit ${meta.label}`}
-    >
-      <div className="px-4 pt-4 pb-2">
-        <div className="type-label mb-4 text-center text-text-tertiary">
-          {meta.label}
-        </div>
-        <div className="mb-4 flex items-baseline justify-center gap-1.5">
-          <span className={cn("type-display", !valid && "text-text-tertiary")}>
-            {shown || "0"}
-          </span>
-          <span className="type-footnote text-text-tertiary">{meta.unit}</span>
-        </div>
-        <NumberPad
-          decimal={false}
-          onKey={(k) => {
-            setEntry((prev) => {
-              const cur = prev ?? "";
-              if (k === "del") return cur.slice(0, -1);
-              if (cur.length >= meta.digits) return cur;
-              return cur + k;
-            });
-          }}
-        />
-        <Button
-          className="mt-4 w-full"
-          disabled={!valid}
-          onClick={() => {
-            onSave(field, parsed);
-            setEntry(null);
-          }}
-        >
-          Save
-        </Button>
-      </div>
-    </Sheet>
-  );
-}

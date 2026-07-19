@@ -118,6 +118,16 @@ enter-only fades/reveals).
 - Quick-add meals are never invalidated on log (no re-sort under the finger);
   `use_count` bumps are best-effort server-side. Set logging retries ×3 with
   backoff (gym connectivity); set numbers are server-assigned and keep gaps.
+- **Offline write queue (M6)**: the three gym-critical creates carry
+  mutationKeys (`log-weight`/`log-food`/`log-set`) registered in
+  `lib/mutation-defaults.ts`. Fired offline they PAUSE (networkMode
+  "online"), persist to IndexedDB (paused + registered key only, via
+  `shouldPersistMutation`), and replay on the next launch through
+  closure-free default mutationFns + `resumePausedMutations`. Invariant:
+  these mutations' VARIABLES must fully self-describe the write — `date` and
+  `loggedAt` ride in the variables (the hooks stamp them at mutate time),
+  never in component closures. Edits/deletes/meals stay fail-and-rollback —
+  replaying a stale edit is worse than losing it.
 - Supabase project: `surplus` (`aqykznlpspuguvvoacpi`, us-west-1). Org was
   at the free 2-project limit — `alpha/delta` is PAUSED to make room; don't
   unpause it without asking the user.
@@ -293,3 +303,20 @@ enter-only fades/reveals).
   Anthropic `claude-sonnet-5` (voice transcription stays on OpenAI), iOS
   standalone-PWA viewport fixes (`100vh` root + `--app-height` shell,
   `shell/app-height.tsx`), barcode serving-size fallbacks. Tests now 46.
+- [x] **M6 — plan view + progression analytics + offline queue**: gear
+  drill-in on Today (`components/plan/plan-view.tsx`) — targets/goal/pace
+  editable via the previously-dormant `useUpdateSettings`, profile edits
+  rebuild the plan through `PUT /api/profile` (always send the
+  self-advanced `effectiveTrainingMonths` — the PUT re-stamps its as-of
+  date), live "why these numbers" rationale from client `buildPlan`, and
+  the `plan_events` audit list (`GET /api/plan-events` now returns newest-
+  first rows). Lift progression: `lift/exercise-trend.tsx` charts the
+  history feed's previously-discarded `recent` (top-set e1RM, strictly
+  before today), fills the iPad idle pane, and the Today lift tile gained
+  volume/last-session context. Nutrition history on Food
+  (`food/nutrition-history.tsx` + pure `lib/history.ts`: closed days only,
+  gaps never zero-filled, guide = stepwise `target_history`) and a dashed
+  goal-rate guide on the Weight chart (`projectionGuide` in `lib/stats.ts`;
+  `LineChart` grew backwards-compatible `color`/`guide` props). Offline
+  write queue per the Data rules bullet. `CACHE_BUSTER` → v3 (day-summaries
+  shape + mutation persistence). `pnpm test` script added. Tests 171.

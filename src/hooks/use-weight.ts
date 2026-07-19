@@ -12,11 +12,13 @@ export function useWeighIns() {
   });
 }
 
-/** Canonical optimistic mutation: cache moves at tap time, rolls back quietly. */
+/** Canonical optimistic mutation: cache moves at tap time, rolls back quietly.
+ *  Keyed so an offline weigh-in queues and replays (lib/mutation-defaults). */
 export function useLogWeight() {
   const qc = useQueryClient();
   const toast = useToast();
   return useMutation({
+    mutationKey: ["log-weight"],
     mutationFn: (w: WeighIn) =>
       fetchJson<WeighIn>("/api/weight", { method: "PUT", ...jsonBody(w) }),
     onMutate: async (w) => {

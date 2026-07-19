@@ -2,27 +2,25 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { asInt, asIsoDate, bad, oops, readBody } from "@/lib/api";
 
+/** Newest-first audit trail — the plan view's history list. */
 export async function GET() {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("plan_events")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(20);
   if (error) return oops(error.message);
-  const e = data[0];
   return NextResponse.json(
-    e
-      ? {
-          id: e.id,
-          date: e.date,
-          action: e.action,
-          observedTdee: e.observed_tdee,
-          targetBefore: e.target_before,
-          targetSuggested: e.target_suggested,
-          createdAt: e.created_at,
-        }
-      : null,
+    data.map((e) => ({
+      id: e.id,
+      date: e.date,
+      action: e.action,
+      observedTdee: e.observed_tdee,
+      targetBefore: e.target_before,
+      targetSuggested: e.target_suggested,
+      createdAt: e.created_at,
+    })),
   );
 }
 

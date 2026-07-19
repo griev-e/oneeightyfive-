@@ -93,17 +93,22 @@ export function useExerciseHistory(exerciseId: string | null, today: string) {
   });
 }
 
+type LogSetInput = { exerciseId: string; weightLbs: number; reps: number };
+
 export function useLogSet(date: string) {
   const qc = useQueryClient();
   const toast = useToast();
-  return useMutation({
-    // the gym is the app's worst connectivity context — retry before rolling back
+  const mutation = useMutation({
+    // the gym is the app's worst connectivity context — retry before rolling
+    // back, and (via the mutationKey + lib/mutation-defaults) queue + replay
+    // when fully offline
+    mutationKey: ["log-set"],
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-    mutationFn: (input: { exerciseId: string; weightLbs: number; reps: number }) =>
+    mutationFn: (input: LogSetInput & { date: string }) =>
       fetchJson<WorkoutSet>("/api/sets", {
         method: "POST",
-        ...jsonBody({ date, ...input }),
+        ...jsonBody(input),
       }),
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: ["sets", date] });
@@ -112,10 +117,7 @@ export function useLogSet(date: string) {
         const mine = old.filter((s) => s.exerciseId === input.exerciseId);
         const setNumber =
           mine.reduce((m, s) => Math.max(m, s.setNumber), 0) + 1;
-        return [
-          ...old,
-          { id: tmpId, date, setNumber, ...input },
-        ];
+        return [...old, { id: tmpId, setNumber, ...input }];
       });
       return { tmpId };
     },
@@ -136,6 +138,18 @@ export function useLogSet(date: string) {
       void qc.invalidateQueries({ queryKey: ["day-summaries"] });
     },
   });
+
+  // date rides in the VARIABLES so a queued set replayed after a relaunch
+  // still knows its app-day
+  return {
+    ...mutation,
+    mutate: (input: LogSetInput, options?: Parameters<typeof mutation.mutate>[1]) =>
+      mutation.mutate({ date, ...input }, options),
+    mutateAsync: (
+      input: LogSetInput,
+      options?: Parameters<typeof mutation.mutateAsync>[1],
+    ) => mutation.mutateAsync({ date, ...input }, options),
+  };
 }
 
 export function useUpdateSet(date: string, exerciseId: string) {

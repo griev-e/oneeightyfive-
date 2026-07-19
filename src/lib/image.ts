@@ -1,3 +1,16 @@
+/** Pure fit-within-max-edge math — scales down only, floors at 1×1. */
+export function fitWithin(
+  width: number,
+  height: number,
+  maxEdge: number,
+): { width: number; height: number } {
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
 /** Downsize camera images before upload; enough detail for labels without
  * sending a full-resolution phone photo through the serverless function. */
 export async function prepareFoodImage(file: File): Promise<File> {
@@ -22,11 +35,10 @@ export async function prepareFoodImage(file: File): Promise<File> {
     cleanup = () => URL.revokeObjectURL(url);
   }
 
-  const maxEdge = 1800;
-  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  const fitted = fitWithin(width, height, 1800);
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
+  canvas.width = fitted.width;
+  canvas.height = fitted.height;
   const context = canvas.getContext("2d");
   if (!context) {
     cleanup();

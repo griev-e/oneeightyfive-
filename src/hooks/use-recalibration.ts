@@ -49,6 +49,7 @@ export function useApplyRecalibration() {
       qc.setQueryData(["recalibration", today], NONE);
       void qc.invalidateQueries({ queryKey: ["recalibration"] });
       void qc.invalidateQueries({ queryKey: ["day-summaries"] });
+      void qc.invalidateQueries({ queryKey: ["plan-events"] });
     },
     onError: () => toast.show("Couldn't apply — try again"),
   });
@@ -86,7 +87,9 @@ export function useDismissRecalibration() {
       qc.setQueryData(["recalibration", today], ctx?.prev);
       toast.show("Couldn't dismiss — try again");
     },
-    onSettled: () =>
-      void qc.invalidateQueries({ queryKey: ["recalibration"] }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["recalibration"] });
+      void qc.invalidateQueries({ queryKey: ["plan-events"] });
+    },
   });
 }
