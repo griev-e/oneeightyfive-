@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { TablesUpdate } from "@/lib/database.types";
-import { asInt, asNum, bad, oops, readBody } from "@/lib/api";
+import { asInt, asNum, asShortText, bad, oops, readBody } from "@/lib/api";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -18,6 +18,25 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const v = asInt(b.reps, 1, 100);
     if (v === null) return bad();
     update.reps = v;
+  }
+  // explicit null clears rpe/note — "not recorded" beats a stale value
+  if (b.rpe !== undefined) {
+    if (b.rpe === null) {
+      update.rpe = null;
+    } else {
+      const v = asNum(b.rpe, 5, 10);
+      if (v === null) return bad();
+      update.rpe = v;
+    }
+  }
+  if (b.note !== undefined) {
+    if (b.note === null) {
+      update.note = null;
+    } else {
+      const v = asShortText(b.note, 200);
+      if (v === null) return bad();
+      update.note = v;
+    }
   }
   if (Object.keys(update).length === 0) return bad("nothing to update");
 

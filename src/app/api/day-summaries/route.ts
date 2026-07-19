@@ -22,7 +22,10 @@ export async function GET(req: Request) {
       .from("target_history")
       .select("effective_date, calorie_target, protein_target_g, carb_target_g, fat_target_g")
       .order("effective_date"),
-    supabase.from("workout_sets").select("date").gte("date", from),
+    supabase
+      .from("workout_sets")
+      .select("date, weight_lbs, reps")
+      .gte("date", from),
   ]);
   if (logs.error) return oops(logs.error.message);
   if (targets.error) return oops(targets.error.message);
@@ -44,6 +47,14 @@ export async function GET(req: Request) {
     byDate.set(l.date, d);
   }
 
+  const liftByDate = new Map<string, { volumeLbs: number; sets: number }>();
+  for (const s of sets.data) {
+    const d = liftByDate.get(s.date) ?? { volumeLbs: 0, sets: 0 };
+    d.volumeLbs += s.weight_lbs * s.reps;
+    d.sets += 1;
+    liftByDate.set(s.date, d);
+  }
+
   return NextResponse.json({
     days: [...byDate.entries()].map(([date, d]) => ({ date, ...d })),
     targets: targets.data.map((t) => ({
@@ -53,6 +64,9 @@ export async function GET(req: Request) {
       carbTargetG: t.carb_target_g,
       fatTargetG: t.fat_target_g,
     })),
-    trainingDates: [...new Set(sets.data.map((s) => s.date))].sort(),
+    trainingDates: [...liftByDate.keys()].sort(),
+    liftDays: [...liftByDate.entries()]
+      .map(([date, d]) => ({ date, ...d }))
+      .sort((a, b) => (a.date < b.date ? -1 : 1)),
   });
 }
