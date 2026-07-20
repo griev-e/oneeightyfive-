@@ -21,5 +21,18 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
     ],
+    // long-press icon jumps (Android; iOS ignores shortcuts)
+    shortcuts: [
+      {
+        name: "Log weight",
+        url: "/weight",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+      },
+      {
+        name: "Log food",
+        url: "/food",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+      },
+    ],
   };
 }

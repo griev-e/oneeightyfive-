@@ -22,6 +22,7 @@ export function LineChart({
   height = 220,
   isActive = true,
   onScrub,
+  onSelect,
 }: {
   data: ChartPoint[];
   avg: ChartPoint[];
@@ -32,6 +33,8 @@ export function LineChart({
   height?: number;
   isActive?: boolean;
   onScrub?: (point: ChartPoint | null) => void;
+  /** a TAP (not a scrub) lands on the nearest point — day drill-ins */
+  onSelect?: (point: ChartPoint) => void;
 }) {
   const reduced = useReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +108,22 @@ export function LineChart({
     onScrub?.(null);
   };
 
+  // a press that never travels is a tap — it selects instead of scrubbing
+  const downAt = useRef<{ x: number; y: number } | null>(null);
+  const TAP_SLOP = 8;
+  const handleUp = (e: React.PointerEvent) => {
+    const down = downAt.current;
+    downAt.current = null;
+    if (
+      down &&
+      scrubIndex !== null &&
+      Math.hypot(e.clientX - down.x, e.clientY - down.y) < TAP_SLOP
+    ) {
+      onSelect?.(data[scrubIndex]);
+    }
+    endScrub();
+  };
+
   const scrubbed = scrubIndex !== null ? data[scrubIndex] : null;
 
   return (
@@ -114,13 +133,17 @@ export function LineChart({
       style={{ height, touchAction: "pan-y" }}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
+        downAt.current = { x: e.clientX, y: e.clientY };
         handlePointer(e);
       }}
       onPointerMove={(e) => {
         if (scrubIndex !== null) handlePointer(e);
       }}
-      onPointerUp={endScrub}
-      onPointerCancel={endScrub}
+      onPointerUp={handleUp}
+      onPointerCancel={() => {
+        downAt.current = null;
+        endScrub();
+      }}
     >
       <motion.div
         initial={false}

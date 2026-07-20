@@ -7,12 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ListRow } from "@/components/ui/list-row";
 import { Segmented } from "@/components/ui/segmented";
-import { Sheet } from "@/components/ui/sheet";
-import { NumberPad } from "@/components/ui/number-pad";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, type ChartPoint } from "@/components/charts/line-chart";
 import { WeighInSheet } from "@/components/weight/weigh-in-sheet";
-import { useWeighIns, useLogWeight } from "@/hooks/use-weight";
+import { LogWeightSheet } from "@/components/weight/log-weight-sheet";
+import { useWeighIns } from "@/hooks/use-weight";
 import { useSettings } from "@/hooks/use-settings";
 import { useProfile } from "@/hooks/use-profile";
 import {
@@ -46,12 +45,10 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
   const { data: weighIns = [], isPending } = useWeighIns();
   const settings = useSettings();
   const { data: profile } = useProfile();
-  const logWeight = useLogWeight();
 
   const [range, setRange] = useState<(typeof RANGES)[number]["id"]>("1m");
   const [scrub, setScrub] = useState<ChartPoint | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [entry, setEntry] = useState<string | null>(null);
   const [editing, setEditing] = useState<WeighIn | null>(null);
 
   const latest = weighIns[weighIns.length - 1];
@@ -127,30 +124,6 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
     () => [...weighIns].slice(-10).reverse(),
     [weighIns],
   );
-
-  const entryValue = entry ?? (latest ? formatWeight(latest.weightLbs) : "");
-
-  const handleKey = (k: string) => {
-    setEntry((prev) => {
-      // first keypress replaces the prefilled last weight
-      const cur = prev ?? "";
-      if (k === "del") return cur.length > 1 ? cur.slice(0, -1) : "";
-      if (k === "." && (cur.includes(".") || cur === "")) return cur;
-      if (cur.includes(".") && cur.split(".")[1].length >= 1) return cur;
-      if (!cur.includes(".") && cur.replace(".", "").length >= 3 && k !== ".")
-        return cur;
-      return cur + k;
-    });
-  };
-
-  const save = () => {
-    const v = parseFloat(entryValue);
-    if (v >= 50 && v <= 500) {
-      logWeight.mutate({ date: getAppDate(), weightLbs: v });
-      setSheetOpen(false);
-      setEntry(null);
-    }
-  };
 
   return (
     <Screen
@@ -278,28 +251,7 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
 
       <WeighInSheet weighIn={editing} onClose={() => setEditing(null)} />
 
-      <Sheet
-        open={sheetOpen}
-        onOpenChange={(o) => {
-          setSheetOpen(o);
-          if (!o) setEntry(null);
-        }}
-        title="Log weight"
-      >
-        <div className="px-4 pt-4 pb-2">
-          <div className="type-label mb-4 text-center text-text-tertiary">
-            Today&apos;s weight
-          </div>
-          <div className="mb-4 flex items-baseline justify-center gap-1.5">
-            <span className="type-display">{entryValue || "0"}</span>
-            <span className="type-footnote text-text-tertiary">lbs</span>
-          </div>
-          <NumberPad onKey={handleKey} />
-          <Button className="mt-4 w-full" onClick={save}>
-            Save
-          </Button>
-        </div>
-      </Sheet>
+      <LogWeightSheet open={sheetOpen} onOpenChange={setSheetOpen} />
     </Screen>
   );
 }

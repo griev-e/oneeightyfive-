@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
@@ -13,6 +13,7 @@ import {
   type ValueFieldMeta,
 } from "./edit-value-sheet";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
+import { useExportData } from "@/hooks/use-export";
 import { useProfile, useSavePlan, type Profile } from "@/hooks/use-profile";
 import { useWeighIns } from "@/hooks/use-weight";
 import { usePlanEvents, type PlanEvent } from "@/hooks/use-plan-events";
@@ -126,6 +127,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
   const { data: events = [] } = usePlanEvents();
   const updateSettings = useUpdateSettings();
   const savePlan = useSavePlan();
+  const exportData = useExportData(today);
 
   const [editingValue, setEditingValue] = useState<TargetKey | null>(null);
   const [editingOption, setEditingOption] = useState<OptionKey | null>(null);
@@ -326,10 +328,19 @@ export function PlanView({ onBack }: { onBack: () => void }) {
                 : `Built for +${plan.rateLbsPerWeek.toFixed(2)} lb/week. ${projectionLine}`}
             </p>
             {customized && (
-              <p className="type-footnote mt-2 text-text-tertiary">
-                Your targets are hand-tuned — the formula currently says{" "}
-                {formatInt(plan.calorieTarget)} cal.
-              </p>
+              <>
+                <p className="type-footnote mt-2 text-text-tertiary">
+                  Your targets are hand-tuned — the formula currently says{" "}
+                  {formatInt(plan.calorieTarget)} cal.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => saveProfile({})}
+                  className="type-body mt-1 flex min-h-11 items-center text-text-secondary"
+                >
+                  Reset to recommended
+                </button>
+              </>
             )}
             <Card className="mt-3 divide-y divide-border-subtle p-0 px-4">
               {(
@@ -454,6 +465,34 @@ export function PlanView({ onBack }: { onBack: () => void }) {
             </Card>
           </section>
         )}
+
+        {/* the insurance policy — everything, as one file */}
+        <section>
+          <div className="type-label mb-2 text-text-tertiary">Data</div>
+          <Card className="p-0 px-4">
+            <motion.button
+              type="button"
+              onClick={() => exportData.mutate()}
+              whileTap={{ scale: press.row }}
+              transition={springs.instant}
+              className="flex min-h-14 w-full items-center justify-between gap-3 py-2 text-left"
+            >
+              <span>
+                <span className="type-body block text-text-primary">
+                  Export data
+                </span>
+                <span className="type-footnote block text-text-tertiary">
+                  Weigh-ins, food, training — one JSON backup
+                </span>
+              </span>
+              <Download
+                size={16}
+                strokeWidth={1.75}
+                className="shrink-0 text-text-tertiary"
+              />
+            </motion.button>
+          </Card>
+        </section>
       </div>
 
       <EditValueSheet

@@ -49,6 +49,7 @@ export default function LockPage() {
   const [digits, setDigits] = useState("");
   const [checking, setChecking] = useState(false);
   const [shake, setShake] = useState(0);
+  const [cooldown, setCooldown] = useState(false);
   const busy = useRef(false);
   const name = useSyncExternalStore(
     noopSubscribe,
@@ -77,6 +78,7 @@ export default function LockPage() {
         window.location.replace("/");
         return;
       }
+      setCooldown(res.status === 429);
     } catch {
       // fall through to the shake
     }
@@ -113,7 +115,9 @@ export default function LockPage() {
                 {name.charAt(0).toUpperCase() + name.slice(1)}
               </span>
             )}
-            <span className="type-label text-text-tertiary">Enter PIN</span>
+            <span className="type-label text-text-tertiary">
+              {cooldown ? "Too many tries — wait a moment" : "Enter PIN"}
+            </span>
             <motion.div
               key={shake}
               animate={
