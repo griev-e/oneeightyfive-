@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { asInt, asIsoDate, asShortText, bad, oops, readBody } from "@/lib/api";
+import { asInt, asIsoDate, asShortText, asUuid, bad, oops, readBody } from "@/lib/api";
 
 type BatchItem = {
   name: string;
@@ -41,7 +41,8 @@ function parseItem(value: unknown): BatchItem | null {
   const proteinG = asInt(item.proteinG ?? 0, 0, 500);
   const carbsG = asInt(item.carbsG ?? 0, 0, 1000);
   const fatG = asInt(item.fatG ?? 0, 0, 500);
-  const mealId = typeof item.mealId === "string" ? item.mealId : null;
+  const mealId = item.mealId == null ? null : asUuid(item.mealId);
+  if (item.mealId != null && !mealId) return null;
   if (
     !name ||
     calories === null ||

@@ -37,7 +37,7 @@ import { GET as suggestGET } from "@/app/api/food-suggestions/route";
 import { GET as planEventsGET } from "@/app/api/plan-events/route";
 import { GET as daySummariesGET } from "@/app/api/day-summaries/route";
 import { POST as unlockPOST } from "@/app/api/unlock/route";
-import { UNLOCK_COOKIE, unlockToken } from "@/lib/auth";
+import { UNLOCK_COOKIE, verifyUnlockToken } from "@/lib/auth";
 
 const post = (url: string, body: unknown) =>
   new Request(url, {
@@ -67,11 +67,13 @@ describe("GET /api/weight", () => {
     ]);
   });
 
-  it("surfaces a DB error as a 500", async () => {
+  it("surfaces a DB error as a generic 500 — detail never reaches the client", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     setResult({ data: null, error: { message: "boom" } });
     const res = await weightGET();
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "boom" });
+    expect(await res.json()).toEqual({ error: "something went wrong" });
+    spy.mockRestore();
   });
 });
 
@@ -329,13 +331,38 @@ describe("POST /api/unlock", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 
-  it("200s on the right PIN and sets the HMAC unlock cookie", async () => {
+  it("200s on the right PIN and sets a verifiable signed unlock cookie", async () => {
     process.env.PIN_LOCK = "1234";
     setResult({ data: { name: "kevin" }, error: null });
     const res = await unlockPOST(post("http://x/api/unlock", { pin: "1234" }));
     expect(res.status).toBe(200);
     const cookie = res.headers.get("set-cookie") ?? "";
-    expect(cookie).toContain(`${UNLOCK_COOKIE}=${await unlockToken("1234")}`);
+    const token = /surplus_unlock=([^;]+)/.exec(cookie)?.[1] ?? "";
+    expect(token).toMatch(/^v2\./);
+    expect(await verifyUnlockToken(token, "1234")).toBe(true);
+    expect(await verifyUnlockToken(token, "9999")).toBe(false);
     expect(cookie.toLowerCase()).toContain("httponly");
+    expect(cookie).toContain(UNLOCK_COOKIE);
   });
+
+  it("locks out after 5 straight misses with a Retry-After", async () => {
+    process.env.PIN_LOCK = "1234";
+    const miss = () =>
+      unlockPOST(
+        new Request("http://x/api/unlock", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-forwarded-for": "203.0.113.7",
+          },
+          body: JSON.stringify({ pin: "0000" }),
+        }),
+      );
+    for (let i = 0; i < 5; i++) {
+      expect((await miss()).status).toBe(401);
+    }
+    const locked = await miss();
+    expect(locked.status).toBe(429);
+    expect(Number(locked.headers.get("retry-after"))).toBeGreaterThan(0);
+  }, 15_000);
 });

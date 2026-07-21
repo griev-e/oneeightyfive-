@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { asShortText, bad, oops, readBody } from "@/lib/api";
+import { asShortText, asUuid, bad, oops, readBody } from "@/lib/api";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
+  const id = asUuid((await ctx.params).id);
+  if (!id) return bad("invalid id");
   const b = await readBody(req);
   const update: { name?: string; archived_at?: null } = {};
   if (b.name !== undefined) {
@@ -27,7 +28,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
 /** Archive — history (and its PRs) stays intact under the covers. */
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
+  const id = asUuid((await ctx.params).id);
+  if (!id) return bad("invalid id");
   const supabase = supabaseServer();
   const { error } = await supabase
     .from("exercises")

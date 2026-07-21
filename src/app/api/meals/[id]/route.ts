@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { TablesUpdate } from "@/lib/database.types";
-import { asInt, asShortText, bad, oops, readBody } from "@/lib/api";
+import { asInt, asShortText, asUuid, bad, oops, readBody } from "@/lib/api";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
+  const id = asUuid((await ctx.params).id);
+  if (!id) return bad("invalid id");
   const b = await readBody(req);
   const update: TablesUpdate<"meals"> = {};
   if (b.name !== undefined) {
@@ -40,7 +41,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
 /** Archive, never hard-delete — logs snapshot their macros anyway. */
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
+  const id = asUuid((await ctx.params).id);
+  if (!id) return bad("invalid id");
   const supabase = supabaseServer();
   const { error } = await supabase
     .from("meals")

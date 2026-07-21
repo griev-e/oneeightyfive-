@@ -17,6 +17,28 @@ export type AnalyzedFood = {
 
 export class FoodAiUnavailableError extends Error {}
 
+export type FoodAiErrorCode = "refused" | "rate_limited" | "timeout" | "invalid" | "upstream";
+
+/** Typed pipeline failure so the routes can answer with a machine-readable
+ * code instead of collapsing everything into one generic 502 — a refusal is
+ * not retryable, a rate limit wants backoff, a timeout wants patience. */
+export class FoodAiError extends Error {
+  constructor(
+    readonly code: FoodAiErrorCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+type AnalysisOptions = {
+  /** Per-attempt budget; the default (25s + 1 retry) fits a route doing
+   * nothing else inside its 60s maxDuration. Callers that already spent
+   * time (transcription) pass a smaller budget. */
+  timeoutMs?: number;
+  maxRetries?: number;
+};
+
 // Structured-outputs schema. The API rejects numeric/length constraints
 // (minimum, maxLength, …) in strict JSON schemas — range clamping stays in
 // normalizeAnalysis instead.
@@ -56,12 +78,14 @@ const MODE_INSTRUCTIONS: Record<FoodAnalysisMode, string> = {
   "meal-photo": `Identify visible foods and estimate their portions. Aggregate the complete visible meal. Account for likely cooking oil or sauces only when visually supported. Meal-photo estimates are inherently uncertain, so confidence must never be high.`,
 };
 
-function getAnthropicClient(): Anthropic {
+function getAnthropicClient(options: AnalysisOptions): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new FoodAiUnavailableError("ANTHROPIC_API_KEY is not configured");
   }
-  // 25s per attempt + 1 retry stays inside the route's 60s maxDuration.
-  return new Anthropic({ timeout: 25_000, maxRetries: 1 });
+  return new Anthropic({
+    timeout: options.timeoutMs ?? 25_000,
+    maxRetries: options.maxRetries ?? 1,
+  });
 }
 
 /** Exported for unit tests: this is the only place range clamping happens,
@@ -103,38 +127,69 @@ export function normalizeAnalysis(value: unknown): AnalyzedFood | null {
 async function createAnalysis(
   mode: FoodAnalysisMode,
   content: Anthropic.ContentBlockParam[],
+  options: AnalysisOptions = {},
 ): Promise<AnalyzedFood> {
-  const client = getAnthropicClient();
-  const response = await client.messages.create({
-    model: process.env.ANTHROPIC_FOOD_MODEL ?? "claude-sonnet-5",
-    max_tokens: 4096,
-    system: `${BASE_INSTRUCTIONS}\n${MODE_INSTRUCTIONS[mode]}`,
-    // Nutrition extraction is short, scoped work — low effort keeps
-    // adaptive thinking cheap and the response fast.
-    output_config: {
-      effort: "low",
-      format: { type: "json_schema", schema: FOOD_SCHEMA },
-    },
-    messages: [{ role: "user", content }],
-  });
+  const client = getAnthropicClient(options);
+  let response: Anthropic.Message;
+  try {
+    response = await client.messages.create({
+      model: process.env.ANTHROPIC_FOOD_MODEL ?? "claude-sonnet-5",
+      max_tokens: 4096,
+      system: `${BASE_INSTRUCTIONS}\n${MODE_INSTRUCTIONS[mode]}`,
+      // Nutrition extraction is short, scoped work — low effort keeps
+      // adaptive thinking cheap and the response fast.
+      output_config: {
+        effort: "low",
+        format: { type: "json_schema", schema: FOOD_SCHEMA },
+      },
+      messages: [{ role: "user", content }],
+    });
+  } catch (error) {
+    if (error instanceof Anthropic.APIConnectionTimeoutError) {
+      throw new FoodAiError("timeout", "Anthropic call timed out");
+    }
+    if (error instanceof Anthropic.APIError) {
+      const status = error.status;
+      if (status === 429 || status === 529) {
+        throw new FoodAiError("rate_limited", `Anthropic ${status}`);
+      }
+      throw new FoodAiError("upstream", `Anthropic ${String(status)}`);
+    }
+    throw error;
+  }
   if (response.stop_reason === "refusal") {
-    throw new Error("Claude declined to analyze this input");
+    throw new FoodAiError("refused", "Claude declined to analyze this input");
+  }
+  if (response.stop_reason === "max_tokens") {
+    throw new FoodAiError("invalid", "Analysis was truncated (max_tokens)");
   }
   const raw = response.content.find(
     (block): block is Anthropic.TextBlock => block.type === "text",
   )?.text;
   if (!raw) {
-    throw new Error(
+    throw new FoodAiError(
+      "invalid",
       `Claude returned no analysis text (stop_reason ${String(response.stop_reason)})`,
     );
   }
-  const analysis = normalizeAnalysis(JSON.parse(raw));
-  if (!analysis) throw new Error("Claude returned an invalid food analysis");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new FoodAiError("invalid", "Claude returned unparseable analysis JSON");
+  }
+  const analysis = normalizeAnalysis(parsed);
+  if (!analysis) {
+    throw new FoodAiError("invalid", "Claude returned an invalid food analysis");
+  }
   return analysis;
 }
 
-export function analyzeFoodDescription(text: string): Promise<AnalyzedFood> {
-  return createAnalysis("description", [{ type: "text", text }]);
+export function analyzeFoodDescription(
+  text: string,
+  options?: AnalysisOptions,
+): Promise<AnalyzedFood> {
+  return createAnalysis("description", [{ type: "text", text }], options);
 }
 
 export function analyzeFoodImage(

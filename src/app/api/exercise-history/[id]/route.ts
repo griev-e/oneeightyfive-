@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { asIsoDate, bad, oops } from "@/lib/api";
+import { asIsoDate, asUuid, bad, oops } from "@/lib/api";
 import { e1rm } from "@/lib/stats";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,7 +12,8 @@ type Ctx = { params: Promise<{ id: string }> };
  * session summaries. Computed at read time — records are never stored.
  */
 export async function GET(req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
+  const id = asUuid((await ctx.params).id);
+  if (!id) return bad("invalid id");
   const today = asIsoDate(new URL(req.url).searchParams.get("today"));
   if (!today) return bad("today required");
 

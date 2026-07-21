@@ -6,6 +6,8 @@ export class HttpError extends Error {
   constructor(
     readonly status: number,
     url: string,
+    /** machine-readable failure code from the response body, when present */
+    readonly code?: string,
   ) {
     super(`${url} → ${status}`);
   }
@@ -20,7 +22,11 @@ export async function fetchJson<T>(
     window.location.replace("/lock");
     throw new Error("locked");
   }
-  if (!res.ok) throw new HttpError(res.status, url);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+    const code = typeof body?.code === "string" ? body.code : undefined;
+    throw new HttpError(res.status, url, code);
+  }
   return res.json() as Promise<T>;
 }
 

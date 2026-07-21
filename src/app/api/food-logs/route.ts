@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { asInt, asIsoDate, asShortText, bad, oops, readBody } from "@/lib/api";
+import { asInt, asIsoDate, asShortText, asUuid, bad, oops, readBody } from "@/lib/api";
+
+const LOG_COLUMNS =
+  "id, date, name, calories, protein_g, carbs_g, fat_g, meal_id, logged_at";
 
 const toDto = (l: {
   id: string;
@@ -30,7 +33,7 @@ export async function GET(req: Request) {
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("food_logs")
-    .select("id, date, name, calories, protein_g, carbs_g, fat_g, meal_id, logged_at")
+    .select(LOG_COLUMNS)
     .eq("date", date)
     .order("logged_at", { ascending: true });
   if (error) return oops(error.message);
@@ -45,7 +48,12 @@ export async function POST(req: Request) {
   const proteinG = asInt(b.proteinG ?? 0, 0, 500);
   const carbsG = asInt(b.carbsG ?? 0, 0, 1000);
   const fatG = asInt(b.fatG ?? 0, 0, 500);
-  const mealId = typeof b.mealId === "string" ? b.mealId : null;
+  const mealId = b.mealId == null ? null : asUuid(b.mealId);
+  if (b.mealId != null && !mealId) return bad();
+  // client_id is the offline-replay idempotency key, stamped into the
+  // mutation variables at mutate time; absent for online-only callers
+  const clientId = b.clientId === undefined ? null : asUuid(b.clientId);
+  if (b.clientId !== undefined && !clientId) return bad();
   // Undo re-inserts with the original timestamp so the row keeps its place
   const loggedAt =
     typeof b.loggedAt === "string" && !Number.isNaN(Date.parse(b.loggedAt))
@@ -55,39 +63,45 @@ export async function POST(req: Request) {
     return bad();
 
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("food_logs")
-    .insert({
-      date,
-      name,
-      calories,
-      protein_g: proteinG,
-      carbs_g: carbsG,
-      fat_g: fatG,
-      meal_id: mealId,
-      ...(loggedAt ? { logged_at: loggedAt } : {}),
-    })
-    .select("id, date, name, calories, protein_g, carbs_g, fat_g, meal_id, logged_at")
-    .single();
+  const row = {
+    date,
+    name,
+    calories,
+    protein_g: proteinG,
+    carbs_g: carbsG,
+    fat_g: fatG,
+    meal_id: mealId,
+    ...(clientId ? { client_id: clientId } : {}),
+    ...(loggedAt ? { logged_at: loggedAt } : {}),
+  };
+  // A replayed write whose ACK was lost must not create a second row: with a
+  // client_id the insert ignores the duplicate and returns the original.
+  const { data, error } = clientId
+    ? await supabase
+        .from("food_logs")
+        .upsert(row, { onConflict: "client_id", ignoreDuplicates: true })
+        .select(LOG_COLUMNS)
+        .maybeSingle()
+    : await supabase.from("food_logs").insert(row).select(LOG_COLUMNS).single();
   if (error) return oops(error.message);
+
+  let logged = data;
+  if (!logged && clientId) {
+    const { data: existing, error: readErr } = await supabase
+      .from("food_logs")
+      .select(LOG_COLUMNS)
+      .eq("client_id", clientId)
+      .single();
+    if (readErr) return oops(readErr.message);
+    logged = existing;
+    return NextResponse.json(toDto(logged)); // replay — the bump already ran
+  }
+  if (!logged) return oops("insert returned no row");
 
   // best-effort ranking bump — a heuristic, not accounting
   if (mealId) {
-    const { data: meal } = await supabase
-      .from("meals")
-      .select("use_count")
-      .eq("id", mealId)
-      .single();
-    if (meal) {
-      await supabase
-        .from("meals")
-        .update({
-          use_count: meal.use_count + 1,
-          last_used_at: new Date().toISOString(),
-        })
-        .eq("id", mealId);
-    }
+    await supabase.rpc("increment_meal_use", { p_meal_id: mealId });
   }
 
-  return NextResponse.json(toDto(data));
+  return NextResponse.json(toDto(logged));
 }

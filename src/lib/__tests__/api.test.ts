@@ -1,12 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   asInt,
   asIsoDate,
   asNum,
   asShortText,
+  asUuid,
   bad,
   oops,
   readBody,
+  sameOrigin,
 } from "@/lib/api";
 
 describe("asInt", () => {
@@ -117,9 +119,56 @@ describe("bad / oops response helpers", () => {
     expect(await bad("no pin").json()).toEqual({ error: "no pin" });
   });
 
-  it("oops returns a 500 with the message", async () => {
-    const res = oops("db down");
+  it("oops returns a generic 500 — upstream detail never reaches the client", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = oops('duplicate key value violates unique constraint "food_logs_pkey"');
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "db down" });
+    expect(await res.json()).toEqual({ error: "something went wrong" });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe("asUuid", () => {
+  it("accepts a canonical UUID in either case", () => {
+    expect(asUuid("f47ac10b-58cc-4372-a567-0e02b2c3d479")).toBe(
+      "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    );
+    expect(asUuid("F47AC10B-58CC-4372-A567-0E02B2C3D479")).toBe(
+      "F47AC10B-58CC-4372-A567-0E02B2C3D479",
+    );
+  });
+
+  it("rejects malformed ids and non-strings", () => {
+    expect(asUuid("not-a-uuid")).toBeNull();
+    expect(asUuid("f47ac10b58cc4372a5670e02b2c3d479")).toBeNull();
+    expect(asUuid("")).toBeNull();
+    expect(asUuid(42)).toBeNull();
+    expect(asUuid(null)).toBeNull();
+  });
+});
+
+describe("sameOrigin", () => {
+  const req = (headers: Record<string, string>) =>
+    new Request("http://surplus.test/api/food-ai/image", {
+      method: "POST",
+      headers,
+    });
+
+  it("passes when Origin matches Host", () => {
+    expect(
+      sameOrigin(req({ origin: "https://surplus.test", host: "surplus.test" })),
+    ).toBe(true);
+  });
+
+  it("passes when Origin is absent (same-origin or non-browser)", () => {
+    expect(sameOrigin(req({ host: "surplus.test" }))).toBe(true);
+  });
+
+  it("rejects a cross-site Origin and unparseable Origins", () => {
+    expect(
+      sameOrigin(req({ origin: "https://evil.example", host: "surplus.test" })),
+    ).toBe(false);
+    expect(sameOrigin(req({ origin: "null", host: "surplus.test" }))).toBe(false);
   });
 });
