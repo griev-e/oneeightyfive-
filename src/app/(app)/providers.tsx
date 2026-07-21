@@ -108,8 +108,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             void client.resumePausedMutations();
           }}
         >
-          <ToastProvider>{children}</ToastProvider>
-          <ServiceWorkerRegister />
+          <ToastProvider>
+            {children}
+            <ServiceWorkerRegister />
+          </ToastProvider>
         </PersistQueryClientProvider>
       </ClientGate>
     </MotionConfig>
