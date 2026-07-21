@@ -30,6 +30,8 @@ export type FoodLogInput = {
   mealId?: string | null;
   /** undo passes the original timestamp so the row keeps its place */
   loggedAt?: string;
+  /** stamped at mutate time — offline replays dedupe on it server-side */
+  clientId?: string;
 };
 
 export function useFoodLogs(date: string) {
@@ -114,14 +116,18 @@ export function useLogFood(date: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["food-logs", date] });
       void qc.invalidateQueries({ queryKey: ["day-summaries"] });
+      // the "usually around now" rail learns from the new log immediately
+      void qc.invalidateQueries({ queryKey: ["food-suggestions", date] });
       // deliberately NOT ['meals'] — the quick-add rail must not resort mid-use
     },
   });
 
-  // stamp loggedAt into the VARIABLES (not just the optimistic row) so a
-  // queued log replayed after a relaunch keeps its tap-time timestamp
+  // stamp loggedAt + clientId into the VARIABLES (not just the optimistic
+  // row) so a queued log replayed after a relaunch keeps its tap-time
+  // timestamp and can't double-insert if the first attempt's ACK was lost
   const stamp = (input: FoodLogInput): FoodLogInput => ({
     loggedAt: new Date().toISOString(),
+    clientId: crypto.randomUUID(),
     ...input,
   });
   return {
@@ -185,6 +191,7 @@ export function useLogFoods(date: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["food-logs", date] });
       void qc.invalidateQueries({ queryKey: ["day-summaries"] });
+      void qc.invalidateQueries({ queryKey: ["food-suggestions", date] });
     },
   });
 }
@@ -259,6 +266,9 @@ export function useMeals() {
   return useQuery({
     queryKey: ["meals"],
     queryFn: () => fetchJson<Meal[]>("/api/meals"),
+    // staples change through this client's own writes (optimistically
+    // applied) — a focus refetch every 5 minutes is pure waste
+    staleTime: 60 * 60_000,
   });
 }
 

@@ -17,3 +17,25 @@ export function supabaseServer() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+const PAGE_SIZE = 1000;
+
+/**
+ * PostgREST silently caps un-ranged selects at 1000 rows — enough to corrupt
+ * any multi-year read (observed TDEE, day summaries, weigh-in history).
+ * Callers rebuild their query per page; ordering must be deterministic.
+ */
+export async function allRows<T>(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[] | null; error: { message: string } | null }> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) return { data: null, error };
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) return { data: rows, error: null };
+  }
+}

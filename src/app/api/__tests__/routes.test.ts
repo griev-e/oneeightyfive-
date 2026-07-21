@@ -29,7 +29,12 @@ const { setResult, client } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/supabase/server", () => ({ supabaseServer: () => client }));
+vi.mock("@/lib/supabase/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supabase/server")>();
+  // keep the real allRows pager — the proxy answers every page with the same
+  // (sub-1000-row) result, so it terminates after one page
+  return { ...actual, supabaseServer: () => client };
+});
 
 import { GET as weightGET, PUT as weightPUT } from "@/app/api/weight/route";
 import { GET as logsGET, POST as logsPOST } from "@/app/api/food-logs/route";

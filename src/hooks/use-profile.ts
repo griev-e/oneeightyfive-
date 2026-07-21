@@ -26,6 +26,8 @@ export function useProfile() {
   return useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchJson<Profile>("/api/profile"),
+    // questionnaire answers change only through this client's own saves
+    staleTime: 60 * 60_000,
   });
 }
 

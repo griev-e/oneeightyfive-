@@ -36,6 +36,9 @@ export function useExercises() {
   return useQuery({
     queryKey: ["exercises"],
     queryFn: () => fetchJson<Exercise[]>("/api/exercises"),
+    // the exercise list changes through this client's own writes — no need
+    // to refetch it on every app foreground
+    staleTime: 60 * 60_000,
   });
 }
 
@@ -119,6 +122,8 @@ type LogSetInput = {
   reps: number;
   rpe?: number | null;
   note?: string | null;
+  /** stamped at mutate time — offline replays dedupe on it server-side */
+  clientId?: string;
 };
 
 export function useLogSet(date: string) {
@@ -168,16 +173,16 @@ export function useLogSet(date: string) {
     },
   });
 
-  // date rides in the VARIABLES so a queued set replayed after a relaunch
-  // still knows its app-day
+  // date + clientId ride in the VARIABLES so a queued set replayed after a
+  // relaunch still knows its app-day and can't double-insert on a lost ACK
   return {
     ...mutation,
     mutate: (input: LogSetInput, options?: Parameters<typeof mutation.mutate>[1]) =>
-      mutation.mutate({ date, ...input }, options),
+      mutation.mutate({ date, clientId: crypto.randomUUID(), ...input }, options),
     mutateAsync: (
       input: LogSetInput,
       options?: Parameters<typeof mutation.mutateAsync>[1],
-    ) => mutation.mutateAsync({ date, ...input }, options),
+    ) => mutation.mutateAsync({ date, clientId: crypto.randomUUID(), ...input }, options),
   };
 }
 

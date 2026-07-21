@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
+import { allRows, supabaseServer } from "@/lib/supabase/server";
 import { asIsoDate, asUuid, bad, oops } from "@/lib/api";
 import { e1rm } from "@/lib/stats";
 
@@ -18,16 +18,21 @@ export async function GET(req: Request, ctx: Ctx) {
   if (!today) return bad("today required");
 
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("workout_sets")
-    .select("date, weight_lbs, reps, set_number, rpe")
-    .eq("exercise_id", id)
-    .lt("date", today)
-    .order("date", { ascending: false })
-    .order("set_number", { ascending: true });
+  // all-time records need the complete per-exercise history — page past the
+  // 1000-row cap or old PRs silently vanish
+  const { data, error } = await allRows((f, t) =>
+    supabase
+      .from("workout_sets")
+      .select("date, weight_lbs, reps, set_number, rpe")
+      .eq("exercise_id", id)
+      .lt("date", today)
+      .order("date", { ascending: false })
+      .order("set_number", { ascending: true })
+      .range(f, t),
+  );
   if (error) return oops(error.message);
 
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return NextResponse.json({ lastSession: null, records: null, recent: [] });
   }
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { QueryClient, type Mutation } from "@tanstack/react-query";
+import type { PersistedClient } from "@tanstack/react-query-persist-client";
 import {
   QUEUED_MUTATION_KEYS,
   isQueuedMutationKey,
   registerMutationDefaults,
+  salvageQueuedMutations,
   shouldPersistMutation,
 } from "../mutation-defaults";
 
@@ -36,6 +38,45 @@ describe("shouldPersistMutation", () => {
     expect(shouldPersistMutation(stub(false, ["log-set"]))).toBe(false);
     expect(shouldPersistMutation(stub(true, ["update-food"]))).toBe(false);
     expect(shouldPersistMutation(stub(true, undefined))).toBe(false);
+  });
+});
+
+describe("salvageQueuedMutations", () => {
+  const blob = (
+    buster: string,
+    mutations: { mutationKey?: unknown }[],
+    queries: unknown[] = [{ queryKey: ["food-logs", "2026-07-21"] }],
+  ) =>
+    ({
+      buster,
+      timestamp: 1,
+      clientState: { queries, mutations },
+    }) as unknown as PersistedClient;
+
+  it("passes a matching buster through untouched", () => {
+    const persisted = blob("v5", [{ mutationKey: ["log-set"] }]);
+    expect(salvageQueuedMutations(persisted, "v5")).toBe(persisted);
+  });
+
+  it("passes undefined through (nothing persisted yet)", () => {
+    expect(salvageQueuedMutations(undefined, "v5")).toBeUndefined();
+  });
+
+  it("keeps queued gym writes across a buster bump, dropping the queries", () => {
+    const persisted = blob("v4", [
+      { mutationKey: ["log-set"] },
+      { mutationKey: ["log-food"] },
+    ]);
+    const salvaged = salvageQueuedMutations(persisted, "v5");
+    expect(salvaged?.buster).toBe("v5"); // restore must accept the blob
+    expect(salvaged?.clientState.queries).toEqual([]);
+    expect(salvaged?.clientState.mutations).toHaveLength(2);
+  });
+
+  it("leaves a mismatched blob alone when nothing is queued — the normal wipe", () => {
+    const persisted = blob("v4", [{ mutationKey: ["not-queued"] }]);
+    const salvaged = salvageQueuedMutations(persisted, "v5");
+    expect(salvaged).toBe(persisted); // buster still v4 → provider discards it
   });
 });
 
