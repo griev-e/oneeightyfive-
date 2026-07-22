@@ -55,6 +55,7 @@ export function ExerciseTrend({
       </div>
       <div className="mt-3">
         <LineChart
+          label="Top-set e1RM trend"
           data={series}
           avg={series}
           height={160}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion, useReducedMotion, useSpring } from "motion/react";
+import { m, useReducedMotion, useSpring } from "motion/react";
 import { CheckDraw } from "./check-draw";
 import { AnimatedNumber } from "./animated-number";
 import { springs, press } from "@/lib/motion";
@@ -51,7 +51,7 @@ function MacroBar({
       className="h-1 w-full overflow-hidden rounded-full"
       style={{ backgroundColor: tint }}
     >
-      <motion.div
+      <m.div
         className="h-full origin-left rounded-full"
         style={{ scaleX: progress, backgroundColor: color }}
       />
@@ -108,7 +108,7 @@ export function MacroGrid({
 
   if (!onPress) return grid;
   return (
-    <motion.button
+    <m.button
       type="button"
       onClick={onPress}
       whileTap={{ scale: press.row }}
@@ -116,6 +116,6 @@ export function MacroGrid({
       className={cn("block w-full text-left")}
     >
       {grid}
-    </motion.button>
+    </m.button>
   );
 }

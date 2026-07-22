@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ChevronRight } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ListRow } from "@/components/ui/list-row";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
 import { MacroFields, type MacroValues } from "./macro-fields";
+import { fades } from "@/lib/motion";
 import {
   useArchiveMeal,
   useMeals,
@@ -60,12 +61,12 @@ export function MealsSheet({
     <Sheet open={open} onOpenChange={close} title="Saved meals">
       <AnimatePresence mode="wait" initial={false}>
         {selected === null ? (
-          <motion.div
+          <m.div
             key="list"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.12 }}
+            transition={fades.crossfade}
             className="px-4 pt-4 pb-2"
           >
             <div className="type-label mb-2 text-text-tertiary">
@@ -99,14 +100,14 @@ export function MealsSheet({
                 ))}
               </div>
             )}
-          </motion.div>
+          </m.div>
         ) : (
-          <motion.div
+          <m.div
             key="detail"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.12 }}
+            transition={fades.crossfade}
             className="pt-4 pb-2"
           >
             <div className="px-4">
@@ -155,7 +156,7 @@ export function MealsSheet({
                 Back
               </Button>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </Sheet>

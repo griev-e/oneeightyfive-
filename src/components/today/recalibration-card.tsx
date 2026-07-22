@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +10,7 @@ import {
   type Recalibration,
 } from "@/hooks/use-recalibration";
 import { formatInt } from "@/lib/format";
-import { fadeRise, springs } from "@/lib/motion";
+import { fadeRise, fades, springs } from "@/lib/motion";
 
 /**
  * "Your real TDEE looks like X — apply?" The app's one recalibration nudge.
@@ -30,10 +30,10 @@ export function RecalibrationCard() {
   return (
     <AnimatePresence>
       {ready && (
-        <motion.div
+        <m.div
           initial={fadeRise.hidden}
           animate={fadeRise.visible}
-          exit={{ opacity: 0, transition: { duration: 0.12 } }}
+          exit={{ opacity: 0, transition: fades.crossfade }}
           transition={springs.default}
         >
           <Card className="mt-6">
@@ -69,7 +69,7 @@ export function RecalibrationCard() {
               </Button>
             </div>
           </Card>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

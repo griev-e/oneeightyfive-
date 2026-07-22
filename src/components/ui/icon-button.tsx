@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "motion/react";
+import { m, type HTMLMotionProps } from "motion/react";
 import { cn } from "@/lib/cn";
 import { springs, press } from "@/lib/motion";
 
@@ -10,7 +10,7 @@ export function IconButton({
   ...props
 }: HTMLMotionProps<"button"> & { "aria-label": string }) {
   return (
-    <motion.button
+    <m.button
       type="button"
       aria-label={ariaLabel}
       whileTap={{ scale: press.icon }}

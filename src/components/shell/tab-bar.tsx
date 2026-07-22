@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { cn } from "@/lib/cn";
 import { springs, press } from "@/lib/motion";
 import { TABS, type TabId } from "./tabs";
@@ -18,7 +18,7 @@ export function TabBar({
       className={cn(
         // iPhone: blurred bottom bar above the safe area
         "z-20 order-last flex shrink-0 border-t border-border-default",
-        "bg-[rgb(10_10_11/0.85)] backdrop-blur-[20px]",
+        "bg-chrome backdrop-blur-[20px]",
         "pb-[env(safe-area-inset-bottom)]",
         "pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]",
         // iPad: 80px left rail
@@ -29,7 +29,7 @@ export function TabBar({
       {TABS.map(({ id, label, icon: Icon }) => {
         const isActive = id === active;
         return (
-          <motion.button
+          <m.button
             key={id}
             type="button"
             onClick={() => onSelect(id)}
@@ -43,10 +43,8 @@ export function TabBar({
             )}
           >
             <Icon size={24} strokeWidth={1.75} />
-            <span className="text-[10px] leading-3.5 font-semibold tracking-[0.02em]">
-              {label}
-            </span>
-          </motion.button>
+            <span className="type-caption">{label}</span>
+          </m.button>
         );
       })}
     </nav>

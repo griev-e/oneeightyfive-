@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { daysBetween } from "@/lib/dates";
 import { easeIOS, springs } from "@/lib/motion";
 import type { WeighIn } from "@/lib/stats";
@@ -18,6 +18,7 @@ export function LineChart({
   data,
   avg,
   guide,
+  label,
   color = "var(--color-text-primary)",
   height = 220,
   isActive = true,
@@ -28,6 +29,8 @@ export function LineChart({
   avg: ChartPoint[];
   /** dashed reference path (target, projection) — never scrubbed, never mint */
   guide?: ChartPoint[];
+  /** what this chart shows, for assistive tech (e.g. "Weight trend") */
+  label?: string;
   /** stroke for the average line + endpoint dot (identity hues, not status) */
   color?: string;
   height?: number;
@@ -145,7 +148,7 @@ export function LineChart({
         endScrub();
       }}
     >
-      <motion.div
+      <m.div
         initial={false}
         animate={{
           clipPath:
@@ -157,7 +160,19 @@ export function LineChart({
         className="absolute inset-0"
       >
         {width > 0 && data.length > 0 && (
-          <svg width={width} height={height}>
+          <svg
+            width={width}
+            height={height}
+            // the numbers exist as text elsewhere on screen; the chart itself
+            // gets a summary label instead of being invisible to AT
+            role="img"
+            aria-label={
+              label
+                ? `${label}: ${data.length} points, latest ${data[data.length - 1].weightLbs}`
+                : undefined
+            }
+            aria-hidden={label ? undefined : true}
+          >
             {guidePath && (
               <path
                 d={guidePath}
@@ -197,7 +212,7 @@ export function LineChart({
             )}
           </svg>
         )}
-      </motion.div>
+      </m.div>
 
       {scrubbed && (
         <>
@@ -205,7 +220,7 @@ export function LineChart({
             className="absolute top-0 bottom-0 w-px bg-border-strong"
             style={{ left: xFor(scrubbed) }}
           />
-          <motion.div
+          <m.div
             key={scrubbed.date}
             initial={{ scale: 1.2 }}
             animate={{ scale: 1 }}

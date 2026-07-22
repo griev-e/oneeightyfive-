@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "motion/react";
-import { Minus, Plus } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
+import { RpeStepper, Stepper, StepperSeparator } from "@/components/ui/stepper";
 import { useToast } from "@/components/ui/toast";
 import {
   useDeleteSet,
@@ -13,7 +12,6 @@ import {
   useUpdateSet,
   type WorkoutSet,
 } from "@/hooks/use-workouts";
-import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 /** Tap a completed set → adjust or delete. Flags re-derive on their own. */
@@ -81,9 +79,7 @@ function SetEditBody({
             onDecrement={() => setWeight((w) => Math.max(w - 5, 0))}
             onIncrement={() => setWeight((w) => Math.min(w + 5, 1500))}
           />
-          <span className="type-title flex h-[2.375rem] items-center text-text-tertiary">
-            ×
-          </span>
+          <StepperSeparator />
           <Stepper
             value={reps}
             unit="reps"
@@ -91,29 +87,8 @@ function SetEditBody({
             onIncrement={() => setReps((r) => Math.min(r + 1, 100))}
           />
         </div>
-        <div className="mt-5 flex min-h-11 items-center justify-between">
-          <span className="type-footnote text-text-secondary">RPE</span>
-          <span className="flex items-center gap-2">
-            <StepButton
-              onClick={() =>
-                setRpe((r) => (r === null ? 8 : Math.max(r - 0.5, 5)))
-              }
-              label="Decrease RPE"
-            >
-              <Minus size={18} strokeWidth={2} />
-            </StepButton>
-            <span className="type-headline w-12 text-center tabular-nums">
-              {rpe ?? "—"}
-            </span>
-            <StepButton
-              onClick={() =>
-                setRpe((r) => (r === null ? 8 : Math.min(r + 0.5, 10)))
-              }
-              label="Increase RPE"
-            >
-              <Plus size={18} strokeWidth={2} />
-            </StepButton>
-          </span>
+        <div className="mt-5">
+          <RpeStepper value={rpe} onChange={setRpe} />
         </div>
         <input
           type="text"
@@ -152,57 +127,5 @@ function SetEditBody({
         </div>
       </div>
     </Sheet>
-  );
-}
-
-function Stepper({
-  value,
-  unit,
-  onDecrement,
-  onIncrement,
-}: {
-  value: number;
-  unit: string;
-  onDecrement: () => void;
-  onIncrement: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex items-baseline gap-1">
-        <span className={cn("type-display tabular-nums")}>{value}</span>
-        <span className="type-footnote text-text-tertiary">{unit}</span>
-      </div>
-      <div className="flex gap-2">
-        <StepButton onClick={onDecrement} label={`Decrease ${unit}`}>
-          <Minus size={18} strokeWidth={2} />
-        </StepButton>
-        <StepButton onClick={onIncrement} label={`Increase ${unit}`}>
-          <Plus size={18} strokeWidth={2} />
-        </StepButton>
-      </div>
-    </div>
-  );
-}
-
-function StepButton({
-  onClick,
-  label,
-  children,
-}: {
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <motion.button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      whileTap={{ scale: press.icon }}
-      transition={springs.instant}
-      className="flex size-11 items-center justify-center rounded-full border border-border-subtle bg-overlay text-text-secondary"
-    >
-      {children}
-    </motion.button>
   );
 }

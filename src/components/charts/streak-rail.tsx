@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import type { StreakPoint } from "@/lib/streaks";
 import { springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -39,7 +39,7 @@ export function StreakRail({
         const frac = p.target > 0 ? Math.min(p.calories / p.target, 1) : 0;
         const heightPct = p.logged ? 18 + frac * 82 : 12;
         return (
-          <motion.div
+          <m.div
             key={p.date}
             className={cn(
               "min-w-0 flex-1 origin-bottom rounded-[3px]",

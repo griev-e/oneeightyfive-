@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Plus } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { AnimatedNumber } from "@/components/ui/animated-number";
@@ -24,7 +24,8 @@ import {
 import { useSettings } from "@/hooks/use-settings";
 import { useAppDate } from "@/hooks/use-app-date";
 import { formatFullDate } from "@/lib/dates";
-import { formatInt } from "@/lib/format";
+import { formatInt, formatLogTime } from "@/lib/format";
+import { sumMacros } from "@/lib/macros";
 import { springs } from "@/lib/motion";
 
 export function FoodPanel({ isActive }: { isActive: boolean }) {
@@ -39,10 +40,8 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
   const [mealsOpen, setMealsOpen] = useState(false);
   const [detail, setDetail] = useState<FoodLog | null>(null);
 
-  const calories = logs.reduce((s, l) => s + l.calories, 0);
-  const protein = logs.reduce((s, l) => s + l.proteinG, 0);
-  const carbs = logs.reduce((s, l) => s + l.carbsG, 0);
-  const fat = logs.reduce((s, l) => s + l.fatG, 0);
+  const { calories, proteinG: protein, carbsG: carbs, fatG: fat } =
+    sumMacros(logs);
   const surplusHit = calories >= settings.calorieTarget;
   const suggestions = (predictionData?.suggestions ?? []).map((suggestion) => {
     const saved = suggestion.mealId
@@ -64,12 +63,6 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
       ? suggestions.slice(0, 5)
       : meals.slice(0, 5);
 
-  const fmtTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-
   return (
     <Screen label={formatFullDate(date)} title="Food">
       {/* hero ring */}
@@ -83,7 +76,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
           <AnimatedNumber value={calories} className="type-display" />
           <AnimatePresence mode="wait" initial={false}>
             {surplusHit ? (
-              <motion.span
+              <m.span
                 key="hit"
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -92,9 +85,9 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
                 className="type-label mt-1 text-accent"
               >
                 Surplus hit
-              </motion.span>
+              </m.span>
             ) : (
-              <motion.span
+              <m.span
                 key="target"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -102,7 +95,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
                 className="type-label mt-1 text-text-tertiary"
               >
                 of {formatInt(settings.calorieTarget)}
-              </motion.span>
+              </m.span>
             )}
           </AnimatePresence>
         </ProgressRing>
@@ -124,7 +117,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
         {meals.length > 0 && (
           <Button
             variant="ghost"
-            className="-mr-2 h-8 px-2"
+            className="-mr-2 px-2"
             onClick={() => setMealsOpen(true)}
           >
             Meals
@@ -185,7 +178,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
           <Card className="divide-y divide-border-subtle p-0 px-3">
             <AnimatePresence initial={false} mode="popLayout">
               {logs.map((log) => (
-                <motion.div
+                <m.div
                   key={log.id}
                   layout
                   initial={{ opacity: 0, y: 8 }}
@@ -195,7 +188,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
                 >
                   <ListRow
                     title={log.name}
-                    subtitle={fmtTime(log.loggedAt)}
+                    subtitle={formatLogTime(log.loggedAt)}
                     trailing={
                       <span className="type-body tabular-nums text-text-secondary">
                         {formatInt(log.calories)}
@@ -203,7 +196,7 @@ export function FoodPanel({ isActive }: { isActive: boolean }) {
                     }
                     onClick={() => setDetail(log)}
                   />
-                </motion.div>
+                </m.div>
               ))}
             </AnimatePresence>
           </Card>

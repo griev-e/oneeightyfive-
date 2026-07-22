@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Button } from "./button";
-import { springs } from "@/lib/motion";
+import { press, springs } from "@/lib/motion";
 
 /**
  * The app's one destructive pattern: a ghost trigger that swaps in place to
@@ -23,7 +23,7 @@ export function ConfirmSwap({
   return (
     <AnimatePresence mode="wait" initial={false}>
       {confirming ? (
-        <motion.div
+        <m.div
           key="confirm"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -38,18 +38,18 @@ export function ConfirmSwap({
           >
             Cancel
           </Button>
-          <motion.button
+          <m.button
             type="button"
-            whileTap={{ scale: 0.97 }}
+            whileTap={{ scale: press.button }}
             transition={springs.instant}
             onClick={onConfirm}
             className="type-headline h-13 flex-1 rounded-lg border border-destructive-border bg-destructive-tint text-destructive"
           >
             {confirmLabel}
-          </motion.button>
-        </motion.div>
+          </m.button>
+        </m.div>
       ) : (
-        <motion.div
+        <m.div
           key="trigger"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -63,7 +63,7 @@ export function ConfirmSwap({
           >
             {label}
           </Button>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

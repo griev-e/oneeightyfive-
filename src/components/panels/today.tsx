@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { ChevronRight, Plus, Settings2 } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { PlanView } from "@/components/plan/plan-view";
@@ -25,6 +25,7 @@ import { computePace, rollingAverage, sessionVolume } from "@/lib/stats";
 import { computeStreak, streakSeries } from "@/lib/streaks";
 import { daysBetween, formatFullDate } from "@/lib/dates";
 import { formatInt, formatPace, formatWeight } from "@/lib/format";
+import { sumMacros } from "@/lib/macros";
 import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import { useRouter } from "next/navigation";
@@ -40,10 +41,8 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
   const { data: weighIns = [] } = useWeighIns();
   const summaries = useDaySummaries();
 
-  const calories = logs.reduce((s, l) => s + l.calories, 0);
-  const protein = logs.reduce((s, l) => s + l.proteinG, 0);
-  const carbs = logs.reduce((s, l) => s + l.carbsG, 0);
-  const fat = logs.reduce((s, l) => s + l.fatG, 0);
+  const { calories, proteinG: protein, carbsG: carbs, fatG: fat } =
+    sumMacros(logs);
   const remaining = settings.calorieTarget - calories;
   const surplusHit = remaining <= 0;
 
@@ -111,7 +110,7 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
       label={formatFullDate(date)}
       title="Today"
       trailing={
-        <motion.button
+        <m.button
           type="button"
           aria-label="Plan and settings"
           onClick={openPlan}
@@ -120,14 +119,17 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
           className="-mr-2 flex size-11 items-center justify-center text-text-secondary"
         >
           <Settings2 size={20} strokeWidth={1.75} />
-        </motion.button>
+        </m.button>
       }
     >
       {/* hero: today's calories */}
-      <button
+      <m.button
         type="button"
         className="mt-2 block text-left"
         onClick={() => switchTab("food")}
+        whileTap={{ scale: press.row }}
+        transition={springs.instant}
+        style={{ transformOrigin: "left center" }}
       >
         <div className="flex items-baseline gap-2">
           <AnimatedNumber value={calories} className="type-hero" />
@@ -136,7 +138,7 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
         <div className="mt-2 flex h-7 items-center">
           <AnimatePresence mode="wait" initial={false}>
             {surplusHit ? (
-              <motion.span
+              <m.span
                 key="hit"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -145,9 +147,9 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
                 className="type-footnote rounded-full border border-accent-border bg-accent-tint px-3 py-1 font-medium text-accent"
               >
                 Surplus hit
-              </motion.span>
+              </m.span>
             ) : (
-              <motion.span
+              <m.span
                 key="togo"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -156,11 +158,11 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
               >
                 {formatInt(remaining)} to go · target{" "}
                 {formatInt(settings.calorieTarget)}
-              </motion.span>
+              </m.span>
             )}
           </AnimatePresence>
         </div>
-      </button>
+      </m.button>
 
       {/* set up your plan — until the questionnaire has run */}
       {needsSetup && (
@@ -256,7 +258,7 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
               : "Gathering data"}
           </div>
         </PressableCard>
-        <motion.button
+        <m.button
           type="button"
           aria-label="Log weight"
           onClick={() => setWeighSheetOpen(true)}
@@ -265,7 +267,7 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
           className="absolute top-1 right-1 flex size-11 items-center justify-center text-text-tertiary"
         >
           <Plus size={18} strokeWidth={2} />
-        </motion.button>
+        </m.button>
         </div>
 
         <PressableCard onClick={() => switchTab("lift")} className="p-5">
@@ -338,7 +340,7 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
 
     <AnimatePresence>
       {planOpen && (
-        <motion.div
+        <m.div
           key="plan"
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
@@ -347,7 +349,7 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
           className="absolute inset-0 z-10 bg-canvas"
         >
           <PlanView onBack={() => window.history.back()} />
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { MotionConfig } from "motion/react";
+import { MotionProvider } from "@/components/ui/motion-provider";
 import { QueryClient, defaultShouldDehydrateQuery } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
@@ -87,7 +87,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   });
 
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionProvider>
       <ClientGate>
         <PersistQueryClientProvider
           client={client}
@@ -114,6 +114,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </ToastProvider>
         </PersistQueryClientProvider>
       </ClientGate>
-    </MotionConfig>
+    </MotionProvider>
   );
 }

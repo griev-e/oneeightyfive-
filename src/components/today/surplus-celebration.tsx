@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { CheckDraw } from "@/components/ui/check-draw";
 import { springs } from "@/lib/motion";
 
@@ -69,7 +69,7 @@ export function SurplusCelebration({
   return createPortal(
     <AnimatePresence>
       {show && (
-        <motion.button
+        <m.button
           type="button"
           aria-label="Dismiss"
           onClick={() => setShow(false)}
@@ -79,7 +79,7 @@ export function SurplusCelebration({
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.18 }}
         >
-          <motion.div
+          <m.div
             className="relative flex items-center justify-center"
             initial={reduced ? false : { scale: 0.6 }}
             animate={{ scale: 1 }}
@@ -90,9 +90,9 @@ export function SurplusCelebration({
               style={{ backgroundColor: "var(--color-accent-tint)" }}
             />
             <CheckDraw checked size={88} />
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             className="flex flex-col items-center gap-1.5 text-center"
             initial={reduced ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -106,8 +106,8 @@ export function SurplusCelebration({
                 ? `${streakCount}-day streak — keep it lit.`
                 : "The streak starts today."}
             </span>
-          </motion.div>
-        </motion.button>
+          </m.div>
+        </m.button>
       )}
     </AnimatePresence>,
     document.body,

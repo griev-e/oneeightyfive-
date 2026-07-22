@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { REST_TARGET_SECONDS, useRestTimer } from "@/hooks/use-rest-timer";
 import { springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -15,11 +15,11 @@ export function RestTimer({ exerciseId }: { exerciseId: string }) {
   if (elapsed === null) return null;
 
   const rested = elapsed >= REST_TARGET_SECONDS;
-  const m = Math.floor(elapsed / 60);
+  const min = Math.floor(elapsed / 60);
   const s = String(elapsed % 60).padStart(2, "0");
 
   return (
-    <motion.span
+    <m.span
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springs.snappy}
@@ -28,7 +28,7 @@ export function RestTimer({ exerciseId }: { exerciseId: string }) {
         rested ? "font-medium text-accent" : "text-text-secondary",
       )}
     >
-      {rested ? "Rested" : "Rest"} {m}:{s}
-    </motion.span>
+      {rested ? "Rested" : "Rest"} {min}:{s}
+    </m.span>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { springs } from "@/lib/motion";
@@ -19,7 +19,7 @@ export function OfflineIndicator() {
     <div className="pointer-events-none fixed inset-x-0 top-0 z-30 flex justify-center pt-[calc(env(safe-area-inset-top)+8px)]">
       <AnimatePresence>
         {!online && (
-          <motion.div
+          <m.div
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
@@ -30,7 +30,7 @@ export function OfflineIndicator() {
             <span className="type-footnote text-text-secondary">
               You&apos;re offline
             </span>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion, useSpring } from "motion/react";
+import { m, useReducedMotion, useSpring } from "motion/react";
 import { easeIOS, springs } from "@/lib/motion";
 
 /**
@@ -53,7 +53,7 @@ export function ProgressRing({
   const c = size / 2;
 
   return (
-    <motion.div
+    <m.div
       animate={pulsing && !reduced ? { scale: [1, 1.04, 1] } : { scale: 1 }}
       transition={{ duration: 0.35, ease: easeIOS }}
       onAnimationComplete={() => setPulsing(false)}
@@ -69,7 +69,7 @@ export function ProgressRing({
           stroke="var(--color-border-default)"
           strokeWidth={strokeWidth}
         />
-        <motion.circle
+        <m.circle
           cx={c}
           cy={c}
           r={r}
@@ -85,7 +85,7 @@ export function ProgressRing({
           transition={{ duration: 0.2 }}
         />
         {/* seamless closed ring on completion — covers the settling spring */}
-        <motion.circle
+        <m.circle
           cx={c}
           cy={c}
           r={r}
@@ -100,6 +100,6 @@ export function ProgressRing({
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         {children}
       </div>
-    </motion.div>
+    </m.div>
   );
 }

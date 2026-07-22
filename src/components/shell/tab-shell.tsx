@@ -7,9 +7,10 @@ import {
   useEffect,
   useState,
 } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { useRouter } from "next/navigation";
 import { TABS, type TabId } from "./tabs";
+import { fades } from "@/lib/motion";
 import { TabBar } from "./tab-bar";
 import { OfflineIndicator } from "./offline-indicator";
 import { useProfile } from "@/hooks/use-profile";
@@ -91,7 +92,7 @@ export function TabShell({ initialTab }: { initialTab: TabId }) {
             const Panel = PANELS[id];
             const isActive = id === active;
             return (
-              <motion.div
+              <m.div
                 key={id}
                 className="absolute inset-0 min-h-0 bg-canvas"
                 initial={false}
@@ -103,7 +104,7 @@ export function TabShell({ initialTab }: { initialTab: TabId }) {
                         zIndex: 2,
                         transition: {
                           visibility: { duration: 0 },
-                          opacity: { duration: 0.12, ease: "linear" },
+                          opacity: { ...fades.crossfade, ease: "linear" },
                         },
                       }
                     : {
@@ -119,7 +120,7 @@ export function TabShell({ initialTab }: { initialTab: TabId }) {
                 inert={!isActive}
               >
                 <Panel isActive={isActive} />
-              </motion.div>
+              </m.div>
             );
           })}
         </div>

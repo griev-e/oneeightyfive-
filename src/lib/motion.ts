@@ -23,6 +23,12 @@ export const numberSpring = { stiffness: 90, damping: 24 };
 /** Tween fallback for enter-only fades; matches iOS system curves */
 export const easeIOS = [0.32, 0.72, 0, 1] as const;
 
+/** Named tweens for the few places a spring is wrong (opacity-only swaps).
+ *  crossfade is THE tab-switch/list-swap fade — 120ms, no movement. */
+export const fades = {
+  crossfade: { duration: 0.12 },
+} satisfies Record<string, Transition>;
+
 /** Press scale values — always paired with touch-action: manipulation */
 export const press = {
   button: 0.97,

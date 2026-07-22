@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
@@ -23,9 +23,6 @@ import {
   effectiveTrainingMonths,
   planWeightLbs,
   tierOf,
-  type Appetite,
-  type BulkStyle,
-  type NeatTier,
   type PlanInputs,
 } from "@/lib/plan";
 import { computePace } from "@/lib/stats";
@@ -33,6 +30,17 @@ import { formatInt } from "@/lib/format";
 import { formatShortDate } from "@/lib/dates";
 import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import {
+  APPETITE_OPTIONS,
+  BODYFAT_OPTIONS,
+  BULK_OPTIONS,
+  CARDIO_OPTIONS,
+  LIFT_DAYS_OPTIONS,
+  NEAT_OPTIONS,
+  SESSION_OPTIONS,
+  optionLabel,
+  projectionLine,
+} from "@/lib/plan-options";
 
 /**
  * The always-available plan screen: live targets (editable without re-running
@@ -53,69 +61,7 @@ const VALUE_META: Record<TargetKey, ValueFieldMeta> = {
   months: { label: "Consistent lifting", unit: "months", min: 0, max: 600, digits: 3 },
 };
 
-const NEAT_OPTIONS = [
-  { value: "sitting", label: "Mostly sitting", helper: "Desk days, under 5k steps" },
-  { value: "light", label: "On my feet a few hours", helper: "5–8k steps" },
-  { value: "active", label: "On my feet most of the day", helper: "8–12k steps" },
-  { value: "demanding", label: "Physical work", helper: "12k+ steps, lifting on the job" },
-] as const satisfies readonly { value: NeatTier; label: string; helper?: string }[];
-
-const BODYFAT_OPTIONS = [
-  { value: 9, label: "Very lean", helper: "Visible abs, vascular" },
-  { value: 12.5, label: "Lean", helper: "Some ab definition" },
-  { value: 16.5, label: "Athletic", helper: "Flat stomach, no abs showing" },
-  { value: 21.5, label: "Average", helper: "A little softness" },
-  { value: 28, label: "Above average", helper: "Carrying extra" },
-  { value: null, label: "Not sure", helper: "Skip the blend — formula only" },
-] as const;
-
-const BULK_OPTIONS = [
-  { value: "lean", label: "Lean", helper: "Slower, minimal fat — abs stay" },
-  { value: "standard", label: "Standard", helper: "The evidence-based default" },
-  { value: "aggressive", label: "Aggressive", helper: "Faster scale weight, more fat comes with it" },
-] as const satisfies readonly { value: BulkStyle; label: string; helper?: string }[];
-
-const APPETITE_OPTIONS = [
-  { value: "easy", label: "Easy", helper: "I could always eat more" },
-  { value: "manageable", label: "Manageable", helper: "Takes some effort" },
-  { value: "struggle", label: "A struggle", helper: "Forcing meals down is the hard part" },
-] as const satisfies readonly { value: Appetite; label: string; helper?: string }[];
-
-const LIFT_DAYS_OPTIONS = [2, 3, 4, 5, 6].map((n) => ({
-  value: n,
-  label: `${n} days a week`,
-}));
-const SESSION_OPTIONS = [
-  { value: 45, label: "About 45 minutes" },
-  { value: 60, label: "About an hour" },
-  { value: 75, label: "75 minutes" },
-  { value: 90, label: "90 minutes or more" },
-];
-const CARDIO_OPTIONS = [
-  { value: 0, label: "None" },
-  { value: 60, label: "About an hour" },
-  { value: 120, label: "About two hours" },
-  { value: 180, label: "Three hours or more" },
-];
-
 type OptionKey = "neat" | "liftDays" | "session" | "cardio" | "bodyfat" | "bulkStyle" | "appetite";
-
-const NEAT_LABEL: Record<NeatTier, string> = {
-  sitting: "Mostly sitting",
-  light: "On my feet a few hours",
-  active: "On my feet most of the day",
-  demanding: "Physical work",
-};
-const BULK_LABEL: Record<BulkStyle, string> = {
-  lean: "Lean",
-  standard: "Standard",
-  aggressive: "Aggressive",
-};
-const APPETITE_LABEL: Record<Appetite, string> = {
-  easy: "Easy",
-  manageable: "Manageable",
-  struggle: "A struggle",
-};
 
 export function PlanView({ onBack }: { onBack: () => void }) {
   const router = useRouter();
@@ -243,21 +189,14 @@ export function PlanView({ onBack }: { onBack: () => void }) {
                 ? settings.goalRateLbsPerWeek
                 : (effectiveMonths ?? 0);
 
-  const projectionLine =
-    plan === null
-      ? null
-      : plan.projection.kind === "at-goal"
-        ? "You're at your goal — this plan holds maintenance."
-        : plan.projection.kind === "open-ended"
-          ? "The pace tapers as you advance — this is a long-horizon goal."
-          : `On pace to pass your goal around ${formatShortDate(plan.projection.projectedDate)}, ${new Date(plan.projection.projectedDate).getFullYear()}.`;
+  const projection = plan === null ? null : projectionLine(plan.projection);
 
   const customized = plan !== null && settings.calorieTarget !== plan.calorieTarget;
 
   return (
     <div className="h-full min-h-0 overflow-y-auto overscroll-contain px-screen pb-tab-clearance">
       <header className="mx-auto max-w-2xl pt-[calc(env(safe-area-inset-top)+20px)]">
-        <motion.button
+        <m.button
           type="button"
           onClick={onBack}
           whileTap={{ scale: press.row }}
@@ -266,7 +205,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
           <span className="type-body">Today</span>
-        </motion.button>
+        </m.button>
         <h1 className="type-title mt-1">Plan</h1>
       </header>
 
@@ -324,8 +263,8 @@ export function PlanView({ onBack }: { onBack: () => void }) {
             </div>
             <p className="type-body text-text-secondary">
               {plan.flags.atGoal
-                ? projectionLine
-                : `Built for +${plan.rateLbsPerWeek.toFixed(2)} lb/week. ${projectionLine}`}
+                ? projection
+                : `Built for +${plan.rateLbsPerWeek.toFixed(2)} lb/week. ${projection}`}
             </p>
             {customized && (
               <>
@@ -390,7 +329,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
             <Card className="divide-y divide-border-subtle p-0 px-4">
               <SettingRow
                 label="Day-to-day activity"
-                value={NEAT_LABEL[answers.neatTier]}
+                value={optionLabel(NEAT_OPTIONS, answers.neatTier)}
                 onClick={() => setEditingOption("neat")}
               />
               <SettingRow
@@ -430,12 +369,12 @@ export function PlanView({ onBack }: { onBack: () => void }) {
               />
               <SettingRow
                 label="Bulk style"
-                value={BULK_LABEL[answers.bulkStyle]}
+                value={optionLabel(BULK_OPTIONS, answers.bulkStyle)}
                 onClick={() => setEditingOption("bulkStyle")}
               />
               <SettingRow
                 label="Appetite"
-                value={APPETITE_LABEL[answers.appetite]}
+                value={optionLabel(APPETITE_OPTIONS, answers.appetite)}
                 onClick={() => setEditingOption("appetite")}
               />
             </Card>
@@ -470,7 +409,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
         <section>
           <div className="type-label mb-2 text-text-tertiary">Data</div>
           <Card className="p-0 px-4">
-            <motion.button
+            <m.button
               type="button"
               onClick={() => exportData.mutate()}
               whileTap={{ scale: press.row }}
@@ -490,7 +429,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
                 strokeWidth={1.75}
                 className="shrink-0 text-text-tertiary"
               />
-            </motion.button>
+            </m.button>
           </Card>
         </section>
       </div>
@@ -609,7 +548,7 @@ function SettingRow({
   onClick: () => void;
 }) {
   return (
-    <motion.button
+    <m.button
       type="button"
       onClick={onClick}
       whileTap={{ scale: press.row }}
@@ -621,7 +560,7 @@ function SettingRow({
         <span className="type-body tabular-nums text-text-secondary">{value}</span>
         <ChevronRight size={16} strokeWidth={1.75} className="text-text-tertiary" />
       </span>
-    </motion.button>
+    </m.button>
   );
 }
 
@@ -679,7 +618,7 @@ function OptionSheet<T>({
           {title}
         </div>
         {options.map((o) => (
-          <motion.button
+          <m.button
             key={String(o.value)}
             type="button"
             whileTap={{ scale: press.row }}
@@ -698,7 +637,7 @@ function OptionSheet<T>({
                 {o.helper}
               </span>
             )}
-          </motion.button>
+          </m.button>
         ))}
       </div>
     </Sheet>

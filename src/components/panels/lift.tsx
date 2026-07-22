@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Minus, Plus, Search } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
+import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { ListRow } from "@/components/ui/list-row";
 import { CheckDraw } from "@/components/ui/check-draw";
 import { PRBadge } from "@/components/ui/pr-badge";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
+import { RpeStepper, Stepper, StepperSeparator } from "@/components/ui/stepper";
 import { SetEditSheet } from "@/components/lift/set-edit-sheet";
 import { ExerciseTrend } from "@/components/lift/exercise-trend";
 import { RestTimer } from "@/components/lift/rest-timer";
@@ -33,6 +34,7 @@ import { restTimer } from "@/hooks/use-rest-timer";
 import { useToast } from "@/components/ui/toast";
 import {
   classifySet,
+  e1rm,
   sessionVolume,
   weeklyVolume,
   type SetFlag,
@@ -168,7 +170,9 @@ export function LiftPanel({ isActive }: { isActive: boolean }) {
                       trailing={
                         <span className="flex items-center gap-2">
                           {todayCount > 0 && (
-                            <span className="type-footnote tabular-nums text-accent">
+                            // logged activity, not a hit target — mint stays
+                            // reserved for PR/overload/surplus moments
+                            <span className="type-footnote tabular-nums text-text-secondary">
                               {todayCount} {todayCount === 1 ? "set" : "sets"}
                             </span>
                           )}
@@ -255,7 +259,7 @@ export function LiftPanel({ isActive }: { isActive: boolean }) {
 
       <AnimatePresence>
         {selected && (
-          <motion.div
+          <m.div
             key={selected.id}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -270,7 +274,7 @@ export function LiftPanel({ isActive }: { isActive: boolean }) {
               onBack={() => window.history.back()}
               onArchived={() => window.history.back()}
             />
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>
@@ -371,19 +375,17 @@ function ExerciseDetail({
       ? lastSets.every((s) => s.weightLbs === 0)
       : weight === 0;
 
-  const nextGhost = ghost;
   const beatingGhost =
-    nextGhost !== null &&
+    ghost !== null &&
     records !== null &&
-    (weight > 0 || nextGhost.weightLbs > 0
-      ? weight * (1 + Math.min(reps, 12) / 30) >
-        nextGhost.weightLbs * (1 + Math.min(nextGhost.reps, 12) / 30)
-      : reps > nextGhost.reps);
+    (weight > 0 || ghost.weightLbs > 0
+      ? e1rm(weight, reps) > e1rm(ghost.weightLbs, ghost.reps)
+      : reps > ghost.reps);
 
   return (
     <div className="h-full min-h-0 overflow-y-auto overscroll-contain px-screen pb-tab-clearance">
       <header className="mx-auto max-w-2xl pt-[calc(env(safe-area-inset-top)+20px)]">
-        <motion.button
+        <m.button
           type="button"
           onClick={onBack}
           whileTap={{ scale: press.row }}
@@ -392,7 +394,7 @@ function ExerciseDetail({
         >
           <ChevronLeft size={22} strokeWidth={1.75} />
           <span className="type-body">Lift</span>
-        </motion.button>
+        </m.button>
         <h1 className="type-title mt-1">{exercise.name}</h1>
         <p className="type-footnote mt-1 text-text-tertiary">
           {history === undefined
@@ -427,7 +429,7 @@ function ExerciseDetail({
           <Card className="mb-4 divide-y divide-border-subtle p-0 px-4">
             <AnimatePresence initial={false}>
               {todaySets.map((set, i) => (
-                <motion.button
+                <m.button
                   key={set.id}
                   type="button"
                   onClick={() => setEditing(set)}
@@ -463,7 +465,7 @@ function ExerciseDetail({
                       size={26}
                     />
                   </span>
-                </motion.button>
+                </m.button>
               ))}
             </AnimatePresence>
           </Card>
@@ -495,46 +497,21 @@ function ExerciseDetail({
               unit="lbs"
               onDecrement={() => setWeight((w) => Math.max(w - 5, 0))}
               onIncrement={() => setWeight((w) => Math.min(w + 5, 1500))}
-              highlight={beatingGhost && weight !== nextGhost?.weightLbs}
+              highlight={beatingGhost && weight !== ghost?.weightLbs}
             />
-            <span className="type-title flex h-[2.375rem] items-center text-text-tertiary">
-              ×
-            </span>
+            <StepperSeparator />
             <Stepper
               value={reps}
               unit="reps"
               onDecrement={() => setReps((r) => Math.max(r - 1, 1))}
               onIncrement={() => setReps((r) => Math.min(r + 1, 100))}
-              highlight={beatingGhost && weight === nextGhost?.weightLbs}
+              highlight={beatingGhost && weight === ghost?.weightLbs}
             />
           </div>
 
           {effortOpen ? (
             <div className="mt-5 space-y-3">
-              <div className="flex min-h-11 items-center justify-between">
-                <span className="type-footnote text-text-secondary">RPE</span>
-                <span className="flex items-center gap-2">
-                  <StepButton
-                    onClick={() =>
-                      setRpe((r) => (r === null ? 8 : Math.max(r - 0.5, 5)))
-                    }
-                    label="Decrease RPE"
-                  >
-                    <Minus size={18} strokeWidth={2} />
-                  </StepButton>
-                  <span className="type-headline w-12 text-center tabular-nums">
-                    {rpe ?? "—"}
-                  </span>
-                  <StepButton
-                    onClick={() =>
-                      setRpe((r) => (r === null ? 8 : Math.min(r + 0.5, 10)))
-                    }
-                    label="Increase RPE"
-                  >
-                    <Plus size={18} strokeWidth={2} />
-                  </StepButton>
-                </span>
-              </div>
+              <RpeStepper value={rpe} onChange={setRpe} />
               <input
                 type="text"
                 value={note}
@@ -602,63 +579,3 @@ function ExerciseDetail({
   );
 }
 
-function Stepper({
-  value,
-  unit,
-  onDecrement,
-  onIncrement,
-  highlight,
-}: {
-  value: number;
-  unit: string;
-  onDecrement: () => void;
-  onIncrement: () => void;
-  highlight?: boolean;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex items-baseline gap-1">
-        <span
-          className={cn(
-            "type-display tabular-nums transition-colors duration-150",
-            highlight && "text-accent",
-          )}
-        >
-          {value}
-        </span>
-        <span className="type-footnote text-text-tertiary">{unit}</span>
-      </div>
-      <div className="flex gap-2">
-        <StepButton onClick={onDecrement} label={`Decrease ${unit}`}>
-          <Minus size={18} strokeWidth={2} />
-        </StepButton>
-        <StepButton onClick={onIncrement} label={`Increase ${unit}`}>
-          <Plus size={18} strokeWidth={2} />
-        </StepButton>
-      </div>
-    </div>
-  );
-}
-
-function StepButton({
-  onClick,
-  label,
-  children,
-}: {
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <motion.button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      whileTap={{ scale: press.icon }}
-      transition={springs.instant}
-      className="flex size-11 items-center justify-center rounded-full border border-border-subtle bg-overlay text-text-secondary"
-    >
-      {children}
-    </motion.button>
-  );
-}

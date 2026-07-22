@@ -117,6 +117,7 @@ export function NutritionHistory({ isActive }: { isActive: boolean }) {
         </div>
         <div className="mt-3">
           <LineChart
+            label="Intake history"
             data={series.data}
             avg={series.avg}
             guide={series.guide}

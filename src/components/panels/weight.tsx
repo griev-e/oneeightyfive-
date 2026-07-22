@@ -196,6 +196,7 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
 
           <Card className="mt-5 p-4">
             <LineChart
+              label="Weight trend"
               data={visible}
               avg={avg}
               guide={guide}

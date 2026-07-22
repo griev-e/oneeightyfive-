@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import {
 import { springs } from "@/lib/motion";
 import { formatInt } from "@/lib/format";
 import type { Plan } from "@/lib/plan";
-import { formatShortDate } from "@/lib/dates";
+import { projectionLine } from "@/lib/plan-options";
 
 /**
  * The computed plan, staged in (opacity/rise only — the hero renders its
@@ -65,42 +65,37 @@ export function PlanReveal({
     values.carbG !== plan.carbG ||
     values.fatG !== plan.fatG;
 
-  const projectionLine =
-    plan.projection.kind === "at-goal"
-      ? "You're at your goal — this plan holds maintenance."
-      : plan.projection.kind === "open-ended"
-        ? "The pace tapers as you advance — this is a long-horizon goal."
-        : `On pace to pass your goal around ${formatShortDate(plan.projection.projectedDate)}, ${new Date(plan.projection.projectedDate).getFullYear()}.`;
+  const projection = projectionLine(plan.projection);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-screen pb-6 pt-6">
         <div className="mx-auto max-w-2xl">
-          <motion.div {...rise(0)} className="type-label text-text-tertiary">
+          <m.div {...rise(0)} className="type-label text-text-tertiary">
             Your plan
-          </motion.div>
+          </m.div>
 
-          <motion.div {...rise(0.1)} className="mt-2 flex items-baseline gap-2">
+          <m.div {...rise(0.1)} className="mt-2 flex items-baseline gap-2">
             <span className="type-hero">{formatInt(values.calorieTarget)}</span>
             <span className="type-hero-unit text-text-secondary">cal / day</span>
-          </motion.div>
+          </m.div>
 
-          <motion.p {...rise(0.3)} className="type-body mt-3 text-text-secondary">
+          <m.p {...rise(0.3)} className="type-body mt-3 text-text-secondary">
             {plan.flags.atGoal
-              ? projectionLine
-              : `Built for +${plan.rateLbsPerWeek.toFixed(2)} lb/week. ${projectionLine}`}
-          </motion.p>
+              ? projection
+              : `Built for +${plan.rateLbsPerWeek.toFixed(2)} lb/week. ${projection}`}
+          </m.p>
 
           {plan.flags.flooredToCurrent && (
-            <motion.p {...rise(0.38)} className="type-footnote mt-2 text-text-tertiary">
+            <m.p {...rise(0.38)} className="type-footnote mt-2 text-text-tertiary">
               The formula said {formatInt(plan.computedCalorieTarget)} — your
               current target stays until your trend runs ahead of pace.
-            </motion.p>
+            </m.p>
           )}
 
           <div className="mt-8 space-y-5">
             {MACRO_ROWS.map((row, i) => (
-              <motion.button
+              <m.button
                 key={row.key}
                 {...rise(0.45 + i * 0.08)}
                 type="button"
@@ -124,7 +119,7 @@ export function PlanReveal({
                   className="mt-2 h-1 w-full overflow-hidden rounded-full"
                   style={{ backgroundColor: row.tint }}
                 >
-                  <motion.div
+                  <m.div
                     className="h-full origin-left rounded-full"
                     style={{ backgroundColor: row.color }}
                     initial={{ scaleX: 0 }}
@@ -132,11 +127,11 @@ export function PlanReveal({
                     transition={{ ...springs.gentle, delay: 0.5 + i * 0.08 }}
                   />
                 </div>
-              </motion.button>
+              </m.button>
             ))}
           </div>
 
-          <motion.div {...rise(0.8)} className="mt-8">
+          <m.div {...rise(0.8)} className="mt-8">
             <Card className="divide-y divide-border-subtle p-0 px-4">
               {(
                 [
@@ -165,11 +160,11 @@ export function PlanReveal({
                 </p>
               </div>
             </Card>
-          </motion.div>
+          </m.div>
         </div>
       </div>
 
-      <motion.div
+      <m.div
         {...rise(0.95)}
         className="px-screen pb-[max(env(safe-area-inset-bottom),24px)] pt-2"
       >
@@ -200,7 +195,7 @@ export function PlanReveal({
             </Button>
           )}
         </div>
-      </motion.div>
+      </m.div>
 
       <EditValueSheet
         meta={editing ? FIELD_META[editing] : null}
