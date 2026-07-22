@@ -8,7 +8,18 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion, MotionConfig } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
+import { MotionProvider } from "@/components/ui/motion-provider";
+import { applyWeightKey } from "@/lib/numeric-entry";
+import {
+  APPETITE_OPTIONS,
+  BODYFAT_OPTIONS,
+  BULK_OPTIONS,
+  CARDIO_OPTIONS,
+  LIFT_DAYS,
+  NEAT_OPTIONS,
+  SESSION_OPTIONS,
+} from "@/lib/plan-options";
 import { ChevronLeft } from "lucide-react";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { NumberPad } from "@/components/ui/number-pad";
@@ -74,13 +85,13 @@ export default function SetupPage() {
   // /setup lives outside the (app) shell — it brings its own providers
   const [client] = useState(() => new QueryClient());
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionProvider>
       <QueryClientProvider client={client}>
         <ToastProvider>
           <Flow />
         </ToastProvider>
       </QueryClientProvider>
-    </MotionConfig>
+    </MotionProvider>
   );
 }
 
@@ -277,7 +288,7 @@ function Flow() {
       />
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <AnimatePresence mode="popLayout" initial={false} custom={direction}>
-          <motion.div
+          <m.div
             key={id}
             initial={{ x: direction * 32, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -295,7 +306,7 @@ function Flow() {
                 goalPrefill={settings.goalWeightLbs}
               />
             </div>
-          </motion.div>
+          </m.div>
         </AnimatePresence>
       </div>
     </main>
@@ -324,7 +335,7 @@ function Header({
 }) {
   return (
     <div className="flex items-center gap-4 px-screen pt-[calc(env(safe-area-inset-top)+12px)]">
-      <motion.button
+      <m.button
         type="button"
         onClick={onBack}
         whileTap={{ scale: press.icon }}
@@ -336,9 +347,9 @@ function Header({
         )}
       >
         <ChevronLeft size={22} strokeWidth={1.75} />
-      </motion.button>
+      </m.button>
       <div className="h-0.5 flex-1 overflow-hidden rounded-full bg-border-default">
-        <motion.div
+        <m.div
           className="h-full origin-left rounded-full bg-text-primary"
           animate={{ scaleX: progress }}
           transition={springs.default}
@@ -375,14 +386,14 @@ function Chips<T>({
   selected,
   onSelect,
 }: {
-  options: { value: T; label: string; helper?: string }[];
+  options: readonly { value: T; label: string; helper?: string }[];
   selected: T | null | undefined;
   onSelect: (v: T) => void;
 }) {
   return (
     <div className="space-y-2">
       {options.map((o) => (
-        <motion.button
+        <m.button
           key={String(o.value)}
           type="button"
           whileTap={{ scale: press.row }}
@@ -401,7 +412,7 @@ function Chips<T>({
               {o.helper}
             </span>
           )}
-        </motion.button>
+        </m.button>
       ))}
     </div>
   );
@@ -585,14 +596,10 @@ function Step({
             valid={parsed >= 80 && parsed <= 400}
             decimal
             onKey={(k) =>
-              setA((prev) => {
-                const cur = prev.weight.trim();
-                if (k === "del") return { ...prev, weight: cur.slice(0, -1) };
-                if (k === "." && (cur.includes(".") || cur === "")) return prev;
-                if (cur.includes(".") && cur.split(".")[1].length >= 1) return prev;
-                if (!cur.includes(".") && cur.length >= 3 && k !== ".") return prev;
-                return { ...prev, weight: cur + k };
-              })
+              setA((prev) => ({
+                ...prev,
+                weight: applyWeightKey(prev.weight.trim(), k),
+              }))
             }
             onContinue={onAnswer}
           />
@@ -606,14 +613,7 @@ function Step({
           helper="An honest eyeball beats false precision — this tunes the formula blend."
         >
           <Chips
-            options={[
-              { value: 9, label: "Very lean", helper: "Visible abs, vascular" },
-              { value: 12.5, label: "Lean", helper: "Some ab definition" },
-              { value: 16.5, label: "Athletic", helper: "Flat stomach, no abs showing" },
-              { value: 21.5, label: "Average", helper: "A little softness" },
-              { value: 28, label: "Above average", helper: "Carrying extra" },
-              { value: null, label: "Not sure", helper: "Skip the blend — formula only" },
-            ]}
+            options={BODYFAT_OPTIONS}
             selected={a.bodyFatPct}
             onSelect={(v) => pick("bodyFatPct", v)}
           />
@@ -623,12 +623,7 @@ function Step({
       return (
         <Q title="Day-to-day activity" helper="Outside the gym.">
           <Chips
-            options={[
-              { value: "sitting" as NeatTier, label: "Mostly sitting", helper: "Desk days, under 5k steps" },
-              { value: "light" as NeatTier, label: "On my feet a few hours", helper: "5–8k steps" },
-              { value: "active" as NeatTier, label: "On my feet most of the day", helper: "8–12k steps" },
-              { value: "demanding" as NeatTier, label: "Physical work", helper: "12k+ steps, lifting on the job" },
-            ]}
+            options={NEAT_OPTIONS}
             selected={a.neatTier}
             onSelect={(v) => pick("neatTier", v)}
           />
@@ -638,8 +633,8 @@ function Step({
       return (
         <Q title="Lifting days per week">
           <div className="grid grid-cols-5 gap-2">
-            {[2, 3, 4, 5, 6].map((n) => (
-              <motion.button
+            {LIFT_DAYS.map((n) => (
+              <m.button
                 key={n}
                 type="button"
                 whileTap={{ scale: press.row }}
@@ -654,7 +649,7 @@ function Step({
                 )}
               >
                 {n}
-              </motion.button>
+              </m.button>
             ))}
           </div>
         </Q>
@@ -663,12 +658,7 @@ function Step({
       return (
         <Q title="Typical session length">
           <Chips
-            options={[
-              { value: 45, label: "About 45 minutes" },
-              { value: 60, label: "About an hour" },
-              { value: 75, label: "75 minutes" },
-              { value: 90, label: "90 minutes or more" },
-            ]}
+            options={SESSION_OPTIONS}
             selected={a.sessionMin}
             onSelect={(v) => pick("sessionMin", v)}
           />
@@ -678,12 +668,7 @@ function Step({
       return (
         <Q title="Deliberate cardio" helper="Runs, bike, sport — per week.">
           <Chips
-            options={[
-              { value: 0, label: "None" },
-              { value: 60, label: "About an hour" },
-              { value: 120, label: "About two hours" },
-              { value: 180, label: "Three hours or more" },
-            ]}
+            options={CARDIO_OPTIONS}
             selected={a.cardioMinPerWeek}
             onSelect={(v) => pick("cardioMinPerWeek", v)}
           />
@@ -752,11 +737,7 @@ function Step({
       return (
         <Q title="How do you want to gain?">
           <Chips
-            options={[
-              { value: "lean" as BulkStyle, label: "Lean", helper: "Slower, minimal fat — abs stay" },
-              { value: "standard" as BulkStyle, label: "Standard", helper: "The evidence-based default" },
-              { value: "aggressive" as BulkStyle, label: "Aggressive", helper: "Faster scale weight, more fat comes with it" },
-            ]}
+            options={BULK_OPTIONS}
             selected={a.bulkStyle}
             onSelect={(v) => pick("bulkStyle", v)}
           />
@@ -769,11 +750,7 @@ function Step({
           helper="Honest answer — it tunes protein and fat so the plan is actually doable."
         >
           <Chips
-            options={[
-              { value: "easy" as Appetite, label: "Easy", helper: "I could always eat more" },
-              { value: "manageable" as Appetite, label: "Manageable", helper: "Takes some effort" },
-              { value: "struggle" as Appetite, label: "A struggle", helper: "Forcing meals down is the hard part" },
-            ]}
+            options={APPETITE_OPTIONS}
             selected={a.appetite}
             onSelect={(v) => pick("appetite", v)}
           />

@@ -1,6 +1,7 @@
 "use client";
 
 import type { Mutation, QueryClient } from "@tanstack/react-query";
+import type { PersistedClient } from "@tanstack/react-query-persist-client";
 import { fetchJson, jsonBody } from "@/hooks/fetch-json";
 import type { WeighIn } from "@/lib/stats";
 
@@ -34,6 +35,26 @@ export function shouldPersistMutation(
   return mutation.state.isPaused && isQueuedMutationKey(mutation.options.mutationKey);
 }
 
+/**
+ * A CACHE_BUSTER bump wipes the persisted query cache — but the same blob
+ * holds the paused offline write queue. Shipping a bump while unsynced gym
+ * writes are queued must not delete them: strip the (stale-shaped) queries,
+ * keep the queued mutations, and stamp the new buster so restore accepts
+ * the blob. Queued VARIABLES are self-describing JSON posted verbatim to
+ * the API, so they survive shape changes the query cache can't.
+ */
+export function salvageQueuedMutations(
+  persisted: PersistedClient | undefined,
+  buster: string,
+): PersistedClient | undefined {
+  if (!persisted || persisted.buster === buster) return persisted;
+  const mutations = persisted.clientState.mutations.filter((m) =>
+    isQueuedMutationKey(m.mutationKey),
+  );
+  if (mutations.length === 0) return persisted; // plain wipe — nothing queued
+  return { ...persisted, buster, clientState: { queries: [], mutations } };
+}
+
 export type LogFoodVars = {
   date: string;
   name: string;
@@ -43,6 +64,9 @@ export type LogFoodVars = {
   fatG: number;
   mealId?: string | null;
   loggedAt?: string;
+  /** idempotency key — a replayed write dedupes server-side instead of
+   * inserting a second row when the first attempt's ACK was lost */
+  clientId?: string;
 };
 
 export type LogSetVars = {
@@ -52,6 +76,8 @@ export type LogSetVars = {
   reps: number;
   rpe?: number | null;
   note?: string | null;
+  /** idempotency key — see LogFoodVars */
+  clientId?: string;
 };
 
 export function registerMutationDefaults(qc: QueryClient) {

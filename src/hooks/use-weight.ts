@@ -9,6 +9,9 @@ export function useWeighIns() {
   return useQuery({
     queryKey: ["weigh-ins"],
     queryFn: () => fetchJson<WeighIn[]>("/api/weight"),
+    // weigh-ins only change through this client's own writes — a half-hour
+    // staleTime keeps app-foreground refetches off the biggest list
+    staleTime: 30 * 60_000,
   });
 }
 

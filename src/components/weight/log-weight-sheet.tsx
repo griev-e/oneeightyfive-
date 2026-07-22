@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { NumberPad } from "@/components/ui/number-pad";
 import { useLogWeight, useWeighIns } from "@/hooks/use-weight";
 import { getAppDate } from "@/lib/dates";
+import { applyWeightKey } from "@/lib/numeric-entry";
 import { formatWeight } from "@/lib/format";
 
 /**
@@ -33,16 +34,8 @@ export function LogWeightSheet({
   };
 
   const handleKey = (k: string) => {
-    setEntry((prev) => {
-      // first keypress replaces the prefilled last weight
-      const cur = prev ?? "";
-      if (k === "del") return cur.length > 1 ? cur.slice(0, -1) : "";
-      if (k === "." && (cur.includes(".") || cur === "")) return cur;
-      if (cur.includes(".") && cur.split(".")[1].length >= 1) return cur;
-      if (!cur.includes(".") && cur.replace(".", "").length >= 3 && k !== ".")
-        return cur;
-      return cur + k;
-    });
+    // first keypress replaces the prefilled last weight
+    setEntry((prev) => applyWeightKey(prev ?? "", k));
   };
 
   const save = () => {

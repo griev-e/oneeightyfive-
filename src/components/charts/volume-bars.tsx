@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import type { WeekVolume } from "@/lib/stats";
 import { springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -39,7 +39,7 @@ export function VolumeBars({
         const heightPct = w.volumeLbs > 0 ? 15 + frac * 85 : 8;
         const isCurrent = i === weeks.length - 1;
         return (
-          <motion.div
+          <m.div
             key={w.weekStart}
             className={cn(
               "min-w-0 flex-1 origin-bottom rounded-[3px]",

@@ -31,6 +31,9 @@ export function useSettings(): Settings {
     queryKey: ["settings"],
     queryFn: () => fetchJson<Settings>("/api/settings"),
     placeholderData: DEFAULT_SETTINGS,
+    // targets change through apply_targets writes that update this cache —
+    // no need to refetch the singleton on every app foreground
+    staleTime: 60 * 60_000,
   });
   return data ?? DEFAULT_SETTINGS;
 }

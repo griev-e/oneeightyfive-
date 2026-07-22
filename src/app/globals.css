@@ -56,6 +56,8 @@
 
   /* ---- app chrome ---- */
   --spacing-tab-bar: 3.5rem;
+  /* translucent canvas for the blurred tab bar */
+  --color-chrome: rgb(10 10 11 / 0.85);
 }
 
 html,
@@ -186,6 +188,14 @@ a,
   font-weight: 600;
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
+}
+
+/* tab-bar labels only — the one place type drops below the 11px label step */
+@utility type-caption {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 /* ---- layout helpers ---- */

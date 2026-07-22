@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -13,7 +13,7 @@ export function PRBadge({
   className?: string;
 }) {
   return (
-    <motion.span
+    <m.span
       initial={{ scale: 0.5, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={springs.gentle}
@@ -24,6 +24,6 @@ export function PRBadge({
       )}
     >
       {label}
-    </motion.span>
+    </m.span>
   );
 }

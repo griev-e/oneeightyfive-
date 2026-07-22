@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
+import { allRows, supabaseServer } from "@/lib/supabase/server";
 import { asIsoDate, bad, oops } from "@/lib/api";
 
 /**
@@ -12,20 +12,31 @@ export async function GET(req: Request) {
   if (!from) return bad("from required");
 
   const supabase = supabaseServer();
+  // a year of food logs easily passes PostgREST's 1000-row cap — page both
+  // raw-row reads or the sums silently drop days
   const [logs, targets, sets] = await Promise.all([
-    supabase
-      .from("food_logs")
-      .select("date, calories, protein_g, carbs_g, fat_g")
-      .gte("date", from)
-      .order("date"),
+    allRows((f, t) =>
+      supabase
+        .from("food_logs")
+        .select("date, calories, protein_g, carbs_g, fat_g")
+        .gte("date", from)
+        .order("date")
+        .order("id")
+        .range(f, t),
+    ),
     supabase
       .from("target_history")
       .select("effective_date, calorie_target, protein_target_g, carb_target_g, fat_target_g")
       .order("effective_date"),
-    supabase
-      .from("workout_sets")
-      .select("date, weight_lbs, reps")
-      .gte("date", from),
+    allRows((f, t) =>
+      supabase
+        .from("workout_sets")
+        .select("date, weight_lbs, reps")
+        .gte("date", from)
+        .order("date")
+        .order("id")
+        .range(f, t),
+    ),
   ]);
   if (logs.error) return oops(logs.error.message);
   if (targets.error) return oops(targets.error.message);
@@ -35,7 +46,7 @@ export async function GET(req: Request) {
     string,
     { calories: number; proteinG: number; carbsG: number; fatG: number; entryCount: number }
   >();
-  for (const l of logs.data) {
+  for (const l of logs.data ?? []) {
     const d =
       byDate.get(l.date) ??
       { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, entryCount: 0 };
@@ -48,7 +59,7 @@ export async function GET(req: Request) {
   }
 
   const liftByDate = new Map<string, { volumeLbs: number; sets: number }>();
-  for (const s of sets.data) {
+  for (const s of sets.data ?? []) {
     const d = liftByDate.get(s.date) ?? { volumeLbs: 0, sets: 0 };
     d.volumeLbs += s.weight_lbs * s.reps;
     d.sets += 1;

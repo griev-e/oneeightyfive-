@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { cn } from "@/lib/cn";
 import { springs } from "@/lib/motion";
 
@@ -32,12 +32,15 @@ export function Segmented<T extends string>({
             onClick={() => onChange(opt.id)}
             className={cn(
               "type-footnote relative h-8 flex-1 font-medium",
+              // hit slop: the pill stays visually compact but the tappable
+              // region meets the 44px touch minimum
+              "before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']",
               "transition-colors duration-150",
               isActive ? "text-text-primary" : "text-text-tertiary",
             )}
           >
             {isActive && (
-              <motion.span
+              <m.span
                 layoutId={layoutId}
                 transition={springs.snappy}
                 className="absolute inset-0 rounded-lg border border-border-default bg-overlay"

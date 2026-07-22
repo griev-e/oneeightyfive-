@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Check, ChevronLeft, Search } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ import {
 import type { AnalyzedFood } from "@/lib/food-ai";
 import type { CatalogFood } from "@/lib/food-catalog";
 import { formatInt } from "@/lib/format";
-import { springs } from "@/lib/motion";
+import { press, springs } from "@/lib/motion";
 
 const EMPTY: MacroValues = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 };
 const PORTIONS = [
@@ -243,7 +243,7 @@ export function EntrySheet({
     >
       <AnimatePresence mode="wait" initial={false}>
         {selected ? (
-          <motion.div
+          <m.div
             key="portion"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -251,9 +251,11 @@ export function EntrySheet({
             transition={springs.default}
             className="px-4 pt-3 pb-2"
           >
-            <button
+            <m.button
               type="button"
               aria-label="Back to foods"
+              whileTap={{ scale: press.icon }}
+              transition={springs.instant}
               className="mb-1 flex size-11 items-center justify-center rounded-md text-text-secondary"
               onClick={() => {
                 setSelected(null);
@@ -263,7 +265,7 @@ export function EntrySheet({
               }}
             >
               <ChevronLeft size={20} strokeWidth={1.75} />
-            </button>
+            </m.button>
             <div className="type-title">{selected.name}</div>
             <div className="type-footnote mt-1 text-text-tertiary">
               {per100
@@ -300,10 +302,12 @@ export function EntrySheet({
             ) : (
               <div className="mt-5 grid grid-cols-4 gap-2">
                 {PORTIONS.map((item) => (
-                  <button
+                  <m.button
                     key={item.value}
                     type="button"
                     aria-pressed={portion === item.value}
+                    whileTap={{ scale: press.button }}
+                    transition={springs.instant}
                     onClick={() => setPortion(item.value)}
                     className={cn(
                       "type-body h-11 rounded-md border bg-raised tabular-nums",
@@ -313,7 +317,7 @@ export function EntrySheet({
                     )}
                   >
                     {item.label}
-                  </button>
+                  </m.button>
                 ))}
               </div>
             )}
@@ -357,9 +361,9 @@ export function EntrySheet({
             >
               Edit macros
             </Button>
-          </motion.div>
+          </m.div>
         ) : view !== "browse" && view !== "custom" ? (
-          <motion.div
+          <m.div
             key={view}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -367,14 +371,16 @@ export function EntrySheet({
             transition={springs.default}
             className="px-4 pt-3 pb-2"
           >
-            <button
+            <m.button
               type="button"
               aria-label="Back to add food"
+              whileTap={{ scale: press.icon }}
+              transition={springs.instant}
               className="mb-1 flex size-11 items-center justify-center rounded-md text-text-secondary"
               onClick={() => setView("browse")}
             >
               <ChevronLeft size={20} strokeWidth={1.75} />
-            </button>
+            </m.button>
             <div className="type-title mb-4">
               {view === "barcode"
                 ? "Scan barcode"
@@ -396,9 +402,9 @@ export function EntrySheet({
                 onFood={(food) => choose(analysisChoice(food))}
               />
             )}
-          </motion.div>
+          </m.div>
         ) : view === "custom" ? (
-          <motion.div
+          <m.div
             key="custom"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -407,14 +413,16 @@ export function EntrySheet({
             className="pt-3 pb-2"
           >
             <div className="px-4">
-              <button
+              <m.button
                 type="button"
                 aria-label="Back to foods"
+                whileTap={{ scale: press.icon }}
+                transition={springs.instant}
                 className="mb-1 flex size-11 items-center justify-center rounded-md text-text-secondary"
                 onClick={() => setView("browse")}
               >
                 <ChevronLeft size={20} strokeWidth={1.75} />
-              </button>
+              </m.button>
               <div className="type-title mb-4">Enter manually</div>
               <input
                 type="text"
@@ -436,10 +444,15 @@ export function EntrySheet({
             <div className="mt-3">
               <MacroFields values={values} onChange={setValues} />
             </div>
-            <button
+            <div className="px-4">
+            <m.button
               type="button"
+              role="checkbox"
+              aria-checked={saveAsMeal}
+              whileTap={{ scale: press.row }}
+              transition={springs.instant}
               onClick={() => setSaveAsMeal((saved) => !saved)}
-              className="mx-4 mt-3 flex h-12 w-[calc(100%-2rem)] items-center justify-between"
+              className="mt-3 flex h-12 w-full items-center justify-between"
             >
               <span className="type-body text-text-secondary">
                 Save for quick-add
@@ -454,7 +467,8 @@ export function EntrySheet({
               >
                 <Check size={14} strokeWidth={2.5} />
               </span>
-            </button>
+            </m.button>
+            </div>
             <div className="px-4">
               <Button
                 className="mt-2 w-full"
@@ -464,9 +478,9 @@ export function EntrySheet({
                 Log
               </Button>
             </div>
-          </motion.div>
+          </m.div>
         ) : (
-          <motion.div
+          <m.div
             key="browse"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -568,7 +582,7 @@ export function EntrySheet({
             >
               Enter manually
             </Button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </Sheet>

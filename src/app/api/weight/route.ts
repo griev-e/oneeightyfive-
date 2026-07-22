@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
+import { allRows, supabaseServer } from "@/lib/supabase/server";
 import { asIsoDate, asNum, bad, oops, readBody } from "@/lib/api";
 
 export async function GET() {
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("weigh_ins")
-    .select("date, weight_lbs")
-    .order("date", { ascending: true });
+  // daily weigh-ins pass PostgREST's 1000-row cap after ~3 years — page
+  const { data, error } = await allRows((f, t) =>
+    supabase
+      .from("weigh_ins")
+      .select("date, weight_lbs")
+      .order("date", { ascending: true })
+      .range(f, t),
+  );
   if (error) return oops(error.message);
+  if (!data) return oops("no rows");
   return NextResponse.json(
     data.map((w) => ({ date: w.date, weightLbs: w.weight_lbs })),
   );

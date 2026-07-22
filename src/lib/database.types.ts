@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          calls: number
+          day: string
+        }
+        Insert: {
+          calls?: number
+          day: string
+        }
+        Update: {
+          calls?: number
+          day?: string
+        }
+        Relationships: []
+      }
       exercises: {
         Row: {
           archived_at: string | null
@@ -21,6 +36,7 @@ export type Database = {
           id: string
           is_seeded: boolean
           name: string
+          rest_seconds: number | null
           sort_order: number
           updated_at: string
         }
@@ -30,6 +46,7 @@ export type Database = {
           id?: string
           is_seeded?: boolean
           name: string
+          rest_seconds?: number | null
           sort_order?: number
           updated_at?: string
         }
@@ -39,6 +56,7 @@ export type Database = {
           id?: string
           is_seeded?: boolean
           name?: string
+          rest_seconds?: number | null
           sort_order?: number
           updated_at?: string
         }
@@ -48,6 +66,7 @@ export type Database = {
         Row: {
           calories: number
           carbs_g: number
+          client_id: string
           created_at: string
           date: string
           fat_g: number
@@ -61,6 +80,7 @@ export type Database = {
         Insert: {
           calories: number
           carbs_g?: number
+          client_id?: string
           created_at?: string
           date: string
           fat_g?: number
@@ -74,6 +94,7 @@ export type Database = {
         Update: {
           calories?: number
           carbs_g?: number
+          client_id?: string
           created_at?: string
           date?: string
           fat_g?: number
@@ -295,6 +316,27 @@ export type Database = {
         }
         Relationships: []
       }
+      unlock_attempts: {
+        Row: {
+          failures: number
+          ip: string
+          locked_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          failures?: number
+          ip: string
+          locked_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          failures?: number
+          ip?: string
+          locked_until?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       weigh_ins: {
         Row: {
           created_at: string
@@ -318,6 +360,7 @@ export type Database = {
       }
       workout_sets: {
         Row: {
+          client_id: string
           created_at: string
           date: string
           exercise_id: string
@@ -330,6 +373,7 @@ export type Database = {
           weight_lbs: number
         }
         Insert: {
+          client_id?: string
           created_at?: string
           date: string
           exercise_id: string
@@ -342,6 +386,7 @@ export type Database = {
           weight_lbs: number
         }
         Update: {
+          client_id?: string
           created_at?: string
           date?: string
           exercise_id?: string
@@ -382,6 +427,38 @@ export type Database = {
           p_protein_target_g: number
         }
         Returns: undefined
+      }
+      bump_ai_usage: { Args: { p_day: string }; Returns: number }
+      increment_meal_use: { Args: { p_meal_id: string }; Returns: undefined }
+      log_workout_set: {
+        Args: {
+          p_client_id: string
+          p_date: string
+          p_exercise_id: string
+          p_note?: string
+          p_reps: number
+          p_rpe?: number
+          p_weight_lbs: number
+        }
+        Returns: {
+          client_id: string
+          created_at: string
+          date: string
+          exercise_id: string
+          id: string
+          note: string | null
+          reps: number
+          rpe: number | null
+          set_number: number
+          updated_at: string
+          weight_lbs: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "workout_sets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

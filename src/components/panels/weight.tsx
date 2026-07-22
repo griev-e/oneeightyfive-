@@ -27,6 +27,7 @@ import {
 } from "@/lib/plan";
 import {
   addDays,
+  daysBetween,
   getAppDate,
   formatMonthYear,
   formatShortDate,
@@ -120,6 +121,23 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
       ? settings.goalWeightLbs - latest.weightLbs
       : null;
 
+  // actual vs planned over the trailing month — the chart draws both lines
+  // but never states the gap
+  const monthVsPlan = useMemo(() => {
+    const ra = rollingAverage(weighIns);
+    if (ra.length === 0) return null;
+    const latestRa = ra[ra.length - 1];
+    const anchorDate = addDays(latestRa.date, -28);
+    const anchor = [...ra].reverse().find((p) => p.date <= anchorDate);
+    if (!anchor) return null;
+    const weeks = daysBetween(anchor.date, latestRa.date) / 7;
+    if (weeks < 3) return null;
+    return {
+      actual: latestRa.weightLbs - anchor.weightLbs,
+      planned: settings.goalRateLbsPerWeek * weeks,
+    };
+  }, [weighIns, settings.goalRateLbsPerWeek]);
+
   const recent = useMemo(
     () => [...weighIns].slice(-10).reverse(),
     [weighIns],
@@ -196,6 +214,7 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
 
           <Card className="mt-5 p-4">
             <LineChart
+              label="Weight trend"
               data={visible}
               avg={avg}
               guide={guide}
@@ -225,6 +244,12 @@ export function WeightPanel({ isActive }: { isActive: boolean }) {
                 {formatWeight(Math.max(toGoal, 0))} to go
               </div>
             )
+          )}
+          {monthVsPlan !== null && (
+            <div className="type-footnote mt-1 tabular-nums text-text-tertiary">
+              Past month: {formatPace(monthVsPlan.actual)} lb vs{" "}
+              {formatPace(monthVsPlan.planned)} planned
+            </div>
           )}
 
           {recent.length > 0 && (

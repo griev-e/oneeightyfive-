@@ -9,6 +9,7 @@ import { useDeleteWeighIn, useLogWeight } from "@/hooks/use-weight";
 import { useToast } from "@/components/ui/toast";
 import { formatFullDate, formatShortDate } from "@/lib/dates";
 import { formatWeight } from "@/lib/format";
+import { applyWeightKey } from "@/lib/numeric-entry";
 import type { WeighIn } from "@/lib/stats";
 
 /** Tap a history row → correct or delete that day. Delete gets an Undo. */
@@ -39,16 +40,8 @@ function WeighInBody({
   const entryValue = entry ?? formatWeight(weighIn.weightLbs);
 
   const handleKey = (k: string) => {
-    setEntry((prev) => {
-      // first keypress replaces the prefilled weight
-      const cur = prev ?? "";
-      if (k === "del") return cur.length > 1 ? cur.slice(0, -1) : "";
-      if (k === "." && (cur.includes(".") || cur === "")) return cur;
-      if (cur.includes(".") && cur.split(".")[1].length >= 1) return cur;
-      if (!cur.includes(".") && cur.replace(".", "").length >= 3 && k !== ".")
-        return cur;
-      return cur + k;
-    });
+    // first keypress replaces the prefilled weight
+    setEntry((prev) => applyWeightKey(prev ?? "", k));
   };
 
   const save = () => {

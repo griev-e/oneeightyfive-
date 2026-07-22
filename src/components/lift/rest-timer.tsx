@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { REST_TARGET_SECONDS, useRestTimer } from "@/hooks/use-rest-timer";
 import { springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -10,16 +10,23 @@ import { cn } from "@/lib/cn";
  * a clock is not a stat glide, so no AnimatedNumber. Mint at the rest target
  * is a legitimate "target hit" moment; before that it's quiet secondary text.
  */
-export function RestTimer({ exerciseId }: { exerciseId: string }) {
+export function RestTimer({
+  exerciseId,
+  targetSeconds = REST_TARGET_SECONDS,
+}: {
+  exerciseId: string;
+  /** per-exercise override (exercises.rest_seconds); default 3:00 */
+  targetSeconds?: number;
+}) {
   const elapsed = useRestTimer(exerciseId);
   if (elapsed === null) return null;
 
-  const rested = elapsed >= REST_TARGET_SECONDS;
-  const m = Math.floor(elapsed / 60);
+  const rested = elapsed >= targetSeconds;
+  const min = Math.floor(elapsed / 60);
   const s = String(elapsed % 60).padStart(2, "0");
 
   return (
-    <motion.span
+    <m.span
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springs.snappy}
@@ -28,7 +35,7 @@ export function RestTimer({ exerciseId }: { exerciseId: string }) {
         rested ? "font-medium text-accent" : "text-text-secondary",
       )}
     >
-      {rested ? "Rested" : "Rest"} {m}:{s}
-    </motion.span>
+      {rested ? "Rested" : "Rest"} {min}:{s}
+    </m.span>
   );
 }

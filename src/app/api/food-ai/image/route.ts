@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import {
-  analyzeFoodImage,
-  FoodAiUnavailableError,
-  type FoodImageMediaType,
-} from "@/lib/food-ai";
+import { sameOrigin } from "@/lib/api";
+import { consumeAiBudget } from "@/lib/ai-budget";
+import { analyzeFoodImage, type FoodImageMediaType } from "@/lib/food-ai";
+import { foodAiBudgetExhausted, foodAiFailure } from "../respond";
 
 // Vision analysis regularly outlives the platform's default function
 // timeout; without this the reader 504s before the model answers.
@@ -13,6 +12,10 @@ const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export async function POST(req: Request) {
+  // multipart POSTs are CORS "simple requests" — reject cross-site senders
+  if (!sameOrigin(req)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   const form = await req.formData().catch(() => null);
   const file = form?.get("image");
   const mode = form?.get("mode");
@@ -26,6 +29,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid image" }, { status: 400 });
   }
 
+  const retryAfterS = await consumeAiBudget();
+  if (retryAfterS !== null) return foodAiBudgetExhausted(retryAfterS);
+
   try {
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const food = await analyzeFoodImage(
@@ -35,16 +41,7 @@ export async function POST(req: Request) {
     );
     return NextResponse.json({ food });
   } catch (error) {
-    if (error instanceof FoodAiUnavailableError) {
-      return NextResponse.json(
-        { error: "Food AI is not configured" },
-        { status: 503 },
-      );
-    }
     console.error("food image analysis failed", error);
-    return NextResponse.json(
-      { error: "Couldn't read that image" },
-      { status: 502 },
-    );
+    return foodAiFailure(error, "Couldn't read that image");
   }
 }

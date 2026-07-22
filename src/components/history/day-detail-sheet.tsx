@@ -8,7 +8,8 @@ import { useExercises } from "@/hooks/use-workouts";
 import { useSettings } from "@/hooks/use-settings";
 import { targetRowFor } from "@/lib/streaks";
 import { formatFullDate } from "@/lib/dates";
-import { formatInt } from "@/lib/format";
+import { formatInt, formatLogTime } from "@/lib/format";
+import { sumMacros } from "@/lib/macros";
 import type { WorkoutSet } from "@/hooks/use-workouts";
 
 /**
@@ -43,12 +44,11 @@ function DayDetailBody({
 
   // the summary row answers instantly from cache; the detail lists fill in
   const summary = summaries.days.find((d) => d.date === date);
-  const calories =
-    logs?.reduce((s, l) => s + l.calories, 0) ?? summary?.calories ?? 0;
-  const protein =
-    logs?.reduce((s, l) => s + l.proteinG, 0) ?? summary?.proteinG ?? 0;
-  const carbs = logs?.reduce((s, l) => s + l.carbsG, 0) ?? summary?.carbsG ?? 0;
-  const fat = logs?.reduce((s, l) => s + l.fatG, 0) ?? summary?.fatG ?? 0;
+  const totals = logs ? sumMacros(logs) : null;
+  const calories = totals?.calories ?? summary?.calories ?? 0;
+  const protein = totals?.proteinG ?? summary?.proteinG ?? 0;
+  const carbs = totals?.carbsG ?? summary?.carbsG ?? 0;
+  const fat = totals?.fatG ?? summary?.fatG ?? 0;
 
   const target = targetRowFor(date, summaries.targets);
   const calorieTarget = target?.calorieTarget ?? settings.calorieTarget;
@@ -57,12 +57,6 @@ function DayDetailBody({
   const byExercise = groupSets(sets ?? []);
   const nameFor = (id: string) =>
     exercises.find((e) => e.id === id)?.name ?? "Archived exercise";
-
-  const fmtTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()} title={formatFullDate(date)}>
@@ -120,7 +114,7 @@ function DayDetailBody({
                   <span className="min-w-0">
                     <span className="type-body block truncate">{log.name}</span>
                     <span className="type-footnote block text-text-tertiary">
-                      {fmtTime(log.loggedAt)}
+                      {formatLogTime(log.loggedAt)}
                     </span>
                   </span>
                   <span className="type-body shrink-0 tabular-nums text-text-secondary">

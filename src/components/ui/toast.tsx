@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { springs } from "@/lib/motion";
 
 /**
@@ -41,7 +41,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div className="bottom-above-tab pointer-events-none fixed inset-x-0 z-50 flex justify-center">
         <AnimatePresence>
           {toast && (
-            <motion.div
+            <m.div
               key={toast.id}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -64,7 +64,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   {toast.action.label}
                 </button>
               )}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>

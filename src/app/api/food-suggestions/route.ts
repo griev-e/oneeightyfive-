@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
+import { allRows, supabaseServer } from "@/lib/supabase/server";
 import { asIsoDate, bad, oops } from "@/lib/api";
 import { addDays } from "@/lib/dates";
 import {
@@ -47,17 +47,22 @@ export async function GET(req: Request) {
   }
 
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select(
-      "id, date, name, calories, protein_g, carbs_g, fat_g, meal_id, logged_at",
-    )
-    .gte("date", addDays(date, -42))
-    .lt("date", date)
-    .order("logged_at", { ascending: true });
+  // 42 days of a heavy logger can pass the 1000-row cap — page
+  const { data, error } = await allRows((f, t) =>
+    supabase
+      .from("food_logs")
+      .select(
+        "id, date, name, calories, protein_g, carbs_g, fat_g, meal_id, logged_at",
+      )
+      .gte("date", addDays(date, -42))
+      .lt("date", date)
+      .order("logged_at", { ascending: true })
+      .order("id")
+      .range(f, t),
+  );
   if (error) return oops(error.message);
 
-  const history = data.map(toHistoryItem);
+  const history = (data ?? []).map(toHistoryItem);
   return NextResponse.json({
     suggestions: rankFoodSuggestions(
       history,

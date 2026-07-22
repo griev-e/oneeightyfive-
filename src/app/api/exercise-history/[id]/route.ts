@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
-import { asIsoDate, bad, oops } from "@/lib/api";
+import { allRows, supabaseServer } from "@/lib/supabase/server";
+import { asIsoDate, asUuid, bad, oops } from "@/lib/api";
 import { e1rm } from "@/lib/stats";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,21 +12,27 @@ type Ctx = { params: Promise<{ id: string }> };
  * session summaries. Computed at read time — records are never stored.
  */
 export async function GET(req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
+  const id = asUuid((await ctx.params).id);
+  if (!id) return bad("invalid id");
   const today = asIsoDate(new URL(req.url).searchParams.get("today"));
   if (!today) return bad("today required");
 
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("workout_sets")
-    .select("date, weight_lbs, reps, set_number, rpe")
-    .eq("exercise_id", id)
-    .lt("date", today)
-    .order("date", { ascending: false })
-    .order("set_number", { ascending: true });
+  // all-time records need the complete per-exercise history — page past the
+  // 1000-row cap or old PRs silently vanish
+  const { data, error } = await allRows((f, t) =>
+    supabase
+      .from("workout_sets")
+      .select("date, weight_lbs, reps, set_number, rpe")
+      .eq("exercise_id", id)
+      .lt("date", today)
+      .order("date", { ascending: false })
+      .order("set_number", { ascending: true })
+      .range(f, t),
+  );
   if (error) return oops(error.message);
 
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return NextResponse.json({ lastSession: null, records: null, recent: [] });
   }
 
@@ -50,10 +56,17 @@ export async function GET(req: Request, ctx: Ctx) {
     }
   }
 
-  const byDate = new Map<string, { sets: number; topWeight: number; topReps: number }>();
+  const byDate = new Map<
+    string,
+    { sets: number; topWeight: number; topReps: number; volumeLbs: number; totalReps: number }
+  >();
   for (const s of data) {
-    const d = byDate.get(s.date) ?? { sets: 0, topWeight: 0, topReps: 0 };
+    const d =
+      byDate.get(s.date) ??
+      { sets: 0, topWeight: 0, topReps: 0, volumeLbs: 0, totalReps: 0 };
     d.sets += 1;
+    d.volumeLbs += s.weight_lbs * s.reps;
+    d.totalReps += s.reps;
     if (s.weight_lbs > d.topWeight) {
       d.topWeight = s.weight_lbs;
       d.topReps = s.reps;

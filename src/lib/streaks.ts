@@ -88,6 +88,30 @@ export function streakSeries(
   return out;
 }
 
+/** Shared streak walk: consecutive hit days ending yesterday, plus today
+ * once it crosses. A missing day reads as 0 — a miss. */
+function runStreak(
+  valueFor: (date: string) => number,
+  targetOf: (date: string) => number,
+  today: string,
+  todayValue: number,
+): Streak {
+  let count = 0;
+  let day = addDays(today, -1);
+  // fixed 366-day window; display "365+" at the edge
+  for (let i = 0; i < 366; i++) {
+    if (valueFor(day) >= targetOf(day)) {
+      count += 1;
+      day = addDays(day, -1);
+    } else {
+      break;
+    }
+  }
+  const todayTarget = targetOf(today);
+  const todayHit = todayValue >= todayTarget;
+  return { count: count + (todayHit ? 1 : 0), todayHit, todayTarget };
+}
+
 export function computeStreak(
   historyDays: DaySum[],
   targets: TargetRow[],
@@ -97,19 +121,56 @@ export function computeStreak(
   fallbackCalories: number,
 ): Streak {
   const byDate = new Map(historyDays.map((d) => [d.date, d.calories]));
-  let count = 0;
-  let day = addDays(today, -1);
-  // fixed 366-day window; display "365+" at the edge
-  for (let i = 0; i < 366; i++) {
-    const calories = byDate.get(day) ?? 0;
-    if (calories >= targetFor(day, targets, fallbackCalories)) {
-      count += 1;
-      day = addDays(day, -1);
-    } else {
-      break;
-    }
+  return runStreak(
+    (date) => byDate.get(date) ?? 0,
+    (date) => targetFor(date, targets, fallbackCalories),
+    today,
+    todayCalories,
+  );
+}
+
+/**
+ * The second flame: consecutive days at or over the protein floor, judged
+ * against THAT day's protein target exactly like the calorie streak.
+ */
+export function computeProteinStreak(
+  historyDays: { date: string; proteinG: number }[],
+  targets: TargetRow[],
+  today: string,
+  /** live sum from ['food-logs', today] */
+  todayProteinG: number,
+  fallbackProteinG: number,
+): Streak {
+  const byDate = new Map(historyDays.map((d) => [d.date, d.proteinG]));
+  return runStreak(
+    (date) => byDate.get(date) ?? 0,
+    (date) => targetRowFor(date, targets)?.proteinTargetG ?? fallbackProteinG,
+    today,
+    todayProteinG,
+  );
+}
+
+/**
+ * The trailing week as a trend, not a verdict: mean daily surplus/deficit vs
+ * each day's own target over the last 7 closed days. Null until at least 3
+ * of them have intake logged — a two-day average isn't a trend.
+ */
+export function weeklySurplus(
+  historyDays: DaySum[],
+  targets: TargetRow[],
+  today: string,
+  fallbackCalories: number,
+): { avgDelta: number; loggedDays: number } | null {
+  const byDate = new Map(historyDays.map((d) => [d.date, d.calories]));
+  let sum = 0;
+  let logged = 0;
+  for (let i = 1; i <= 7; i++) {
+    const date = addDays(today, -i);
+    const calories = byDate.get(date);
+    if (calories === undefined) continue;
+    sum += calories - targetFor(date, targets, fallbackCalories);
+    logged += 1;
   }
-  const todayTarget = targetFor(today, targets, fallbackCalories);
-  const todayHit = todayCalories >= todayTarget;
-  return { count: count + (todayHit ? 1 : 0), todayHit, todayTarget };
+  if (logged < 3) return null;
+  return { avgDelta: Math.round(sum / logged), loggedDays: logged };
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Delete } from "lucide-react";
-import { springs } from "@/lib/motion";
+import { press, springs } from "@/lib/motion";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del"];
 
@@ -25,17 +25,19 @@ export function NumberPad({
           return <span key={k} aria-hidden className="h-14" />;
         }
         return (
-          <motion.button
+          <m.button
             key={k}
             type="button"
             onClick={() => onKey(k)}
-            whileTap={{ scale: 0.95, backgroundColor: "var(--color-raised)" }}
+            // scale only — an animated backgroundColor is not a transform, so
+            // it would survive reduced-motion; active: handles the tint
+            whileTap={{ scale: press.button }}
             transition={springs.instant}
             aria-label={k === "del" ? "Delete" : k}
-            className="type-title tabular-nums flex h-14 items-center justify-center rounded-md text-text-primary"
+            className="type-title tabular-nums flex h-14 items-center justify-center rounded-md text-text-primary active:bg-raised"
           >
             {k === "del" ? <Delete size={24} strokeWidth={1.75} /> : k}
-          </motion.button>
+          </m.button>
         );
       })}
     </div>

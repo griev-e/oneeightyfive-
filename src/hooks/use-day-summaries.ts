@@ -38,6 +38,9 @@ export function useDaySummaries(): DaySummaries {
       fetchJson<DaySummaries>(
         `/api/day-summaries?from=${addDays(today, -366)}`,
       ),
+    // every food/set write invalidates this feed already — refetching a year
+    // of summaries on each app foreground is pure waste
+    refetchOnWindowFocus: false,
   });
   return data ?? EMPTY;
 }

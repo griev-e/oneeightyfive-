@@ -15,12 +15,24 @@ const VERSION = "__SW_VERSION__";
 const CACHE = `surplus-shell-${VERSION}`;
 const SHELL_URL = "/";
 
+// Only the app tabs may fall back to the cached shell offline — /lock and
+// /setup are different documents, and serving the app shell there would be
+// wrong (and could loop through the 401 → /lock redirect).
+const SHELL_PATHS = new Set(["/", "/weight", "/food", "/lift"]);
+
+// Never cache a redirected "/" — if the unlock cookie has expired, the
+// response is the /lock page, and caching THAT as the shell would trap
+// offline launches on the lock screen.
+async function cacheShell(cache, res) {
+  if (res.ok && !res.redirected) await cache.put(SHELL_URL, res);
+}
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.add(SHELL_URL))
+      .then(async (cache) => cacheShell(cache, await fetch(SHELL_URL)))
       .catch(() => {}),
   );
 });
@@ -46,20 +58,24 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
 
-  // App shell: network-first so it stays fresh, cached "/" as the offline floor.
+  // App shell: network-first so it stays fresh, cached "/" as the offline
+  // floor — but only for the app tabs (SHELL_PATHS).
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
         try {
           const res = await fetch(request);
-          if (url.pathname === SHELL_URL && res.ok) {
+          if (url.pathname === SHELL_URL) {
             const cache = await caches.open(CACHE);
-            cache.put(SHELL_URL, res.clone());
+            await cacheShell(cache, res.clone());
           }
           return res;
         } catch {
-          const cached = await caches.match(SHELL_URL);
-          return cached ?? Response.error();
+          if (SHELL_PATHS.has(url.pathname)) {
+            const cached = await caches.match(SHELL_URL);
+            if (cached) return cached;
+          }
+          return Response.error();
         }
       })(),
     );

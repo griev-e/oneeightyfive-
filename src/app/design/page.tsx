@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion, MotionConfig } from "motion/react";
+import { m } from "motion/react";
+import { MotionProvider } from "@/components/ui/motion-provider";
 import { springs } from "@/lib/motion";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { ProgressRing } from "@/components/ui/progress-ring";
@@ -45,11 +46,11 @@ const TYPE_RAMP = [
 
 export default function DesignPage() {
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionProvider>
       <ToastProvider>
         <Gallery />
       </ToastProvider>
-    </MotionConfig>
+    </MotionProvider>
   );
 }
 
@@ -220,7 +221,7 @@ function SpringDemo({ name }: { name: keyof typeof springs }) {
         <span className="type-footnote text-text-tertiary">tap to replay</span>
       </div>
       <div className="relative h-3">
-        <motion.span
+        <m.span
           key={run}
           initial={{ left: 0 }}
           animate={{ left: "calc(100% - 12px)" }}

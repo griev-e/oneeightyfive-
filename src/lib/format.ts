@@ -12,3 +12,11 @@ export function formatPace(lbsPerWeek: number): string {
   const sign = lbsPerWeek >= 0 ? "+" : "−";
   return `${sign}${Math.abs(lbsPerWeek).toFixed(2)}`;
 }
+
+/** 1:07 PM — the time a food log landed, for list subtitles */
+export function formatLogTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

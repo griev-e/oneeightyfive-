@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useSyncExternalStore } from "react";
-import { motion, MotionConfig } from "motion/react";
+import { m } from "motion/react";
+import { MotionProvider } from "@/components/ui/motion-provider";
 import { NumberPad } from "@/components/ui/number-pad";
 import { cn } from "@/lib/cn";
 
@@ -104,7 +105,7 @@ export default function LockPage() {
   };
 
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionProvider>
       <main className="app-shell flex flex-col items-center bg-canvas pt-[env(safe-area-inset-top)]">
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8">
           <PlusMark />
@@ -118,7 +119,7 @@ export default function LockPage() {
             <span className="type-label text-text-tertiary">
               {cooldown ? "Too many tries — wait a moment" : "Enter PIN"}
             </span>
-            <motion.div
+            <m.div
               key={shake}
               animate={
                 shake > 0 ? { x: [0, -10, 10, -6, 6, 0] } : { x: 0 }
@@ -138,13 +139,13 @@ export default function LockPage() {
                   )}
                 />
               ))}
-            </motion.div>
+            </m.div>
           </div>
         </div>
         <div className="w-full max-w-90 pb-[max(env(safe-area-inset-bottom),24px)]">
           <NumberPad onKey={handleKey} decimal={false} />
         </div>
       </main>
-    </MotionConfig>
+    </MotionProvider>
   );
 }

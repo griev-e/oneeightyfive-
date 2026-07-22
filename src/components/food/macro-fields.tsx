@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { m } from "motion/react";
 import { NumberPad } from "@/components/ui/number-pad";
+import { press, springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 /**
@@ -56,9 +58,12 @@ export function MacroFields({
           const isActive = f.key === active;
           const v = values[f.key];
           return (
-            <button
+            <m.button
               key={f.key}
               type="button"
+              aria-pressed={isActive}
+              whileTap={{ scale: press.button }}
+              transition={springs.instant}
               onClick={() => {
                 setActive(f.key);
                 setTouched((t) => {
@@ -89,7 +94,7 @@ export function MacroFields({
               >
                 {v}
               </span>
-            </button>
+            </m.button>
           );
         })}
       </div>

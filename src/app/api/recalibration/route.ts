@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase/server";
+import { allRows, supabaseServer } from "@/lib/supabase/server";
 import { asIsoDate, bad, oops, readBody } from "@/lib/api";
+import { addDays } from "@/lib/dates";
 import {
   buildPlan,
   estimateObservedTdee,
@@ -53,12 +54,31 @@ type Computed =
 async function compute(today: string): Promise<Computed> {
   const supabase = supabaseServer();
 
+  // estimateObservedTdee only looks at the trailing 28 app-days (plus the
+  // rolling-average lookback), so bound the reads — an unbounded food_logs
+  // select would silently truncate at PostgREST's 1000-row cap and corrupt
+  // the observed-TDEE math once the log history grows.
   const [profileRes, settingsRes, weighInsRes, logsRes, targetsRes, eventRes] =
     await Promise.all([
       supabase.from("profile").select("*").eq("id", 1).single(),
       supabase.from("settings").select("*").eq("id", 1).single(),
-      supabase.from("weigh_ins").select("date, weight_lbs").order("date"),
-      supabase.from("food_logs").select("date, calories"),
+      // newest 400 (≥ a year of daily entries) keeps the latest weigh-in
+      // available even after a long gap; the math only needs recent points
+      supabase
+        .from("weigh_ins")
+        .select("date, weight_lbs")
+        .order("date", { ascending: false })
+        .limit(400),
+      allRows((f, t) =>
+        supabase
+          .from("food_logs")
+          .select("date, calories")
+          .gte("date", addDays(today, -28))
+          .lt("date", today)
+          .order("date")
+          .order("id")
+          .range(f, t),
+      ),
       supabase
         .from("target_history")
         .select(
@@ -98,10 +118,9 @@ async function compute(today: string): Promise<Computed> {
     return { ready: false };
   }
 
-  const weighIns = weighInsRes.data.map((w) => ({
-    date: w.date,
-    weightLbs: w.weight_lbs,
-  }));
+  const weighIns = weighInsRes.data
+    .map((w) => ({ date: w.date, weightLbs: w.weight_lbs }))
+    .reverse(); // fetched newest-first; the math expects ascending dates
 
   const inputs: PlanInputs = {
     sex: p.sex as Sex,
@@ -144,7 +163,7 @@ async function compute(today: string): Promise<Computed> {
   }));
 
   const byDate = new Map<string, { calories: number; entryCount: number }>();
-  for (const l of logsRes.data) {
+  for (const l of logsRes.data ?? []) {
     const d = byDate.get(l.date) ?? { calories: 0, entryCount: 0 };
     d.calories += l.calories;
     d.entryCount += 1;

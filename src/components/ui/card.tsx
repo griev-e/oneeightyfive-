@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "motion/react";
+import { m, type HTMLMotionProps } from "motion/react";
 import { cn } from "@/lib/cn";
 import { springs, press } from "@/lib/motion";
 
@@ -26,7 +26,7 @@ export function PressableCard({
   ...props
 }: HTMLMotionProps<"button">) {
   return (
-    <motion.button
+    <m.button
       type="button"
       whileTap={{ scale: press.row }}
       transition={springs.instant}

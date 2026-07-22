@@ -11,6 +11,8 @@ import { BarcodeScanner } from "./barcode-scanner";
 import { VoiceRecorder } from "./voice-recorder";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import { cn } from "@/lib/cn";
 import {
   useAnalyzeFoodImage,
   useBarcodeLookup,
@@ -64,15 +66,24 @@ export function FoodInputActions({
 }: {
   onSelect: (mode: CaptureMode) => void;
 }) {
+  // The AI modes need the network before the camera/mic even opens — greyed
+  // tiles beat "take the photo, then watch it fail". Barcode fails fast on
+  // its own and stays available.
+  const online = useOnlineStatus();
   return (
     <div className="mt-4 grid grid-cols-2 gap-2">
       {ACTIONS.map((action) => {
         const Icon = action.icon;
+        const offline = !online && action.mode !== "barcode";
         return (
           <button
             key={action.mode}
             type="button"
-            className="flex min-h-16 items-center gap-3 rounded-md border border-border-subtle bg-raised px-3 text-left active:bg-overlay"
+            disabled={offline}
+            className={cn(
+              "flex min-h-16 items-center gap-3 rounded-md border border-border-subtle bg-raised px-3 text-left active:bg-overlay",
+              offline && "opacity-40 active:bg-raised",
+            )}
             onClick={() => onSelect(action.mode)}
           >
             <Icon
@@ -85,7 +96,7 @@ export function FoodInputActions({
                 {action.label}
               </span>
               <span className="type-footnote block truncate text-text-tertiary">
-                {action.helper}
+                {offline ? "Needs connection" : action.helper}
               </span>
             </span>
           </button>

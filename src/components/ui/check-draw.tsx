@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { springs } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -27,20 +27,20 @@ export function CheckDraw({
       )}
       style={{ width: size, height: size }}
     >
-      <motion.span
+      <m.span
         className="absolute inset-0 rounded-full"
         style={{ backgroundColor: fill }}
         initial={false}
         animate={{ scale: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
         transition={springs.snappy}
       />
-      <motion.svg
+      <m.svg
         viewBox="0 0 24 24"
         fill="none"
         className="relative"
         style={{ width: size * 0.55, height: size * 0.55 }}
       >
-        <motion.path
+        <m.path
           d="M4.5 12.5l5 5 10-11"
           stroke="var(--color-canvas)"
           strokeWidth={2.5}
@@ -50,7 +50,7 @@ export function CheckDraw({
           animate={{ pathLength: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
           transition={{ ...springs.snappy, delay: checked ? 0.03 : 0 }}
         />
-      </motion.svg>
+      </m.svg>
     </span>
   );
 }

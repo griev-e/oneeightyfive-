@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import { asInt, asIsoDate, asNum, asShortText, bad, oops, readBody } from "@/lib/api";
+import { asInt, asIsoDate, asNum, asShortText, asUuid, bad, oops, readBody } from "@/lib/api";
 
 const SET_COLUMNS = "id, date, exercise_id, weight_lbs, reps, set_number, rpe, note";
 
@@ -41,10 +41,14 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const b = await readBody(req);
   const date = asIsoDate(b.date);
-  const exerciseId = typeof b.exerciseId === "string" ? b.exerciseId : null;
+  const exerciseId = asUuid(b.exerciseId);
   const weightLbs = asNum(b.weightLbs, 0, 1500);
   const reps = asInt(b.reps, 1, 100);
   if (!date || !exerciseId || weightLbs === null || reps === null) return bad();
+  // client_id is the offline-replay idempotency key; the server mints one
+  // for online-only callers so the RPC path is uniform
+  const clientId = b.clientId === undefined ? crypto.randomUUID() : asUuid(b.clientId);
+  if (!clientId) return bad();
   // rpe/note are optional — present-but-invalid is still a 400
   let rpe: number | null = null;
   if (b.rpe !== undefined && b.rpe !== null) {
@@ -57,33 +61,18 @@ export async function POST(req: Request) {
     if (note === null) return bad();
   }
 
-  const supabase = supabaseServer();
-  // server assigns set_number; one retry absorbs a same-moment double-log
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const { data: maxRow } = await supabase
-      .from("workout_sets")
-      .select("set_number")
-      .eq("date", date)
-      .eq("exercise_id", exerciseId)
-      .order("set_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const setNumber = (maxRow?.set_number ?? 0) + 1;
-    const { data, error } = await supabase
-      .from("workout_sets")
-      .insert({
-        date,
-        exercise_id: exerciseId,
-        weight_lbs: weightLbs,
-        reps,
-        set_number: setNumber,
-        rpe,
-        note,
-      })
-      .select(SET_COLUMNS)
-      .single();
-    if (!error) return NextResponse.json(toDto(data));
-    if (error.code !== "23505") return oops(error.message);
-  }
-  return oops("could not assign set number");
+  // One atomic call: the RPC assigns set_number (max+1, retrying internally
+  // on a same-moment collision) and returns the existing row untouched when
+  // a replayed client_id comes back — no duplicate on a lost ACK.
+  const { data, error } = await supabaseServer().rpc("log_workout_set", {
+    p_client_id: clientId,
+    p_exercise_id: exerciseId,
+    p_date: date,
+    p_weight_lbs: weightLbs,
+    p_reps: reps,
+    ...(rpe !== null ? { p_rpe: rpe } : {}),
+    ...(note !== null ? { p_note: note } : {}),
+  });
+  if (error) return oops(error.message);
+  return NextResponse.json(toDto(data));
 }
