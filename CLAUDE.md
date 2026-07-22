@@ -60,7 +60,10 @@ color/size in a component.
 
 All transitions come from `src/lib/motion.ts` — **no component ever defines
 inline stiffness/damping.** Springs, not tweens (`easeIOS` tween only for
-enter-only fades/reveals).
+enter-only fades/reveals; `fades.crossfade` is the named 120ms opacity swap).
+Components use `m.` from `motion/react` under `MotionProvider`
+(`ui/motion-provider.tsx`: LazyMotion strict + code-split `domMax` +
+reduced-motion) — a full `motion.` import throws in dev.
 
 - Presets: `instant` (press feedback ~120ms) · `snappy` (checkmarks ~180ms) ·
   `default` (lists/layout ~250ms) · `gentle` (ring fill, celebrations, slight
@@ -126,9 +129,12 @@ enter-only fades/reveals).
   "online"), persist to IndexedDB (paused + registered key only, via
   `shouldPersistMutation`), and replay on the next launch through
   closure-free default mutationFns + `resumePausedMutations`. Invariant:
-  these mutations' VARIABLES must fully self-describe the write — `date` and
-  `loggedAt` ride in the variables (the hooks stamp them at mutate time),
-  never in component closures. Edits/deletes/meals stay fail-and-rollback —
+  these mutations' VARIABLES must fully self-describe the write — `date`,
+  `loggedAt`, and a `clientId` idempotency key ride in the variables (the
+  hooks stamp them at mutate time), never in component closures; the server
+  dedupes replays on `client_id`, so a lost ACK can't double-log. A
+  CACHE_BUSTER bump wipes queries but `salvageQueuedMutations` carries the
+  queued writes across it. Edits/deletes/meals stay fail-and-rollback —
   replaying a stale edit is worse than losing it.
 - Supabase project: `surplus` (`aqykznlpspuguvvoacpi`, us-west-1). Org was
   at the free 2-project limit — `alpha/delta` is PAUSED to make room; don't
@@ -237,9 +243,12 @@ enter-only fades/reveals).
 - **No Supabase Auth, no email.** A 4-digit PIN gate: `/lock` (design-language
   PIN pad, time-of-day greeting from the profile name cached in localStorage)
   → `POST /api/unlock` compares against the `PIN_LOCK` env var
-  (constant-time) and sets a year-long httpOnly cookie whose value is
-  `HMAC-SHA256(key=PIN, "surplus-unlock-v1")` — rotating `PIN_LOCK` logs out
-  every device. `middleware.ts` gates every page and API route (pages →
+  (constant-time, length-blind) and sets a year-long httpOnly cookie
+  `v2.<expiry>.<hmac>` signed with SHA-256(PIN + SESSION_SECRET∥
+  SUPABASE_SECRET_KEY) — a leaked cookie is not a PIN oracle; rotating
+  `PIN_LOCK` (or the secret) logs out every device. Unlock lockout is per-IP
+  and durable (`unlock_attempts`); middleware fails closed if `PIN_LOCK` is
+  unset while the Supabase secret is present. `middleware.ts` gates every page and API route (pages →
   redirect `/lock`, APIs → 401); PWA chrome (manifest/icons/splash) stays
   public so install works. If `PIN_LOCK` is unset the gate stays open
   (bootstrap mode) — data routes still fail without the secret key.
@@ -249,9 +258,12 @@ enter-only fades/reveals).
   client code or `NEXT_PUBLIC_*`. The `apply_targets` RPC is pinned
   (`search_path = ''`) with EXECUTE revoked from anon/authenticated/public.
 - Env vars (Vercel + `.env.local`): required — `PIN_LOCK`, `SUPABASE_URL`,
-  `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY`; optional —
-  `ANTHROPIC_FOOD_MODEL`, `OPENAI_API_KEY` (voice transcription only),
-  `USDA_API_KEY`. All provider keys are server-only — never `NEXT_PUBLIC_*`.
+  `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY`; recommended — `SESSION_SECRET`
+  (mixed into the unlock cookie's HMAC key; falls back to
+  `SUPABASE_SECRET_KEY`); optional — `ANTHROPIC_FOOD_MODEL`, `OPENAI_API_KEY`
+  (voice transcription only), `USDA_API_KEY`, `AI_DAILY_CAP` (food-AI daily
+  spend cap, default 60), `DESIGN_GALLERY` (=1 exposes /design in prod).
+  All provider keys are server-only — never `NEXT_PUBLIC_*`.
 
 ## PWA checklist
 
@@ -370,3 +382,25 @@ enter-only fades/reveals).
   design — 28 bars ≈ 12px targets would break the 44px touch minimum.
   `.claude/skills/verify/SKILL.md` documents the local verify recipe.
   Tests 188.
+- [x] **M9 — full audit sweep (35 items)**: security (signed v2 unlock
+  cookie + expiry, durable per-IP lockout, generic 500s — raw DB errors
+  never reach the client, food-AI daily budget via `bump_ai_usage`, Origin
+  checks on multipart routes, UUID validation everywhere, CSP/COOP/CORP,
+  fail-closed bootstrap, `/design` prod-gated), data correctness (`allRows`
+  pager kills the 1000-row truncation in day-summaries/weight/suggestions/
+  exercise-history; recalibration bounded to its 28-day window; atomic
+  `increment_meal_use` + `log_workout_set` RPCs; `client_id` idempotency for
+  offline replays; buster bumps salvage the offline queue — CACHE_BUSTER →
+  v5), perf (LazyMotion `m.` everywhere, persistence whitelisted to domain
+  keys, staleTime tuning, day-summaries off focus-refetch, suggestions
+  invalidate on log), PWA (SW navigate fallback scoped to app tabs +
+  never-cache-redirected-shell, update toast on new SW,
+  `storage.persist()`, offline-aware capture tiles), features (one-tap
+  progression target beating the ghost + live e1RM delta, protein streak +
+  weekly surplus line on Today, per-session volume trend toggle, PlanView
+  target-history chart with observed-TDEE dots, month-vs-plan line on
+  Weight, `/api/import` restore behind a destructive confirm, per-exercise
+  rest targets in `exercises.rest_seconds`), polish (press feedback on
+  hero/chips/tiles, 44px targets, `--color-chrome` + `type-caption` tokens,
+  shared `ui/stepper` + `applyWeightKey` + `sumMacros` + `lib/plan-options`,
+  checkbox/chart a11y), CI builds. Migration 0005. Tests 224.
