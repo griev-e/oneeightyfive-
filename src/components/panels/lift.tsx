@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, m } from "motion/react";
-import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Plus, Search } from "lucide-react";
 import { Screen } from "@/components/shell/screen";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { ListRow } from "@/components/ui/list-row";
 import { CheckDraw } from "@/components/ui/check-draw";
 import { PRBadge } from "@/components/ui/pr-badge";
 import { ConfirmSwap } from "@/components/ui/confirm-swap";
-import { RpeStepper, Stepper, StepperSeparator } from "@/components/ui/stepper";
+import { RpeStepper, StepButton, Stepper, StepperSeparator } from "@/components/ui/stepper";
 import { SetEditSheet } from "@/components/lift/set-edit-sheet";
 import { ExerciseTrend } from "@/components/lift/exercise-trend";
 import { RestTimer } from "@/components/lift/rest-timer";
@@ -24,18 +24,20 @@ import {
   useLogSet,
   useRestoreExercise,
   useSets,
+  useUpdateExercise,
   type Exercise,
   type WorkoutSet,
 } from "@/hooks/use-workouts";
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useProfile } from "@/hooks/use-profile";
 import { useAppDate } from "@/hooks/use-app-date";
-import { restTimer } from "@/hooks/use-rest-timer";
+import { REST_TARGET_SECONDS, restTimer } from "@/hooks/use-rest-timer";
 import { useToast } from "@/components/ui/toast";
 import {
   classifySet,
   e1rm,
   sessionVolume,
+  suggestProgression,
   weeklyVolume,
   type SetFlag,
 } from "@/lib/stats";
@@ -324,6 +326,7 @@ function ExerciseDetail({
   const logSet = useLogSet(date);
   const archive = useArchiveExercise();
   const restore = useRestoreExercise();
+  const updateExercise = useUpdateExercise();
   const toast = useToast();
   const [editing, setEditing] = useState<WorkoutSet | null>(null);
   const [effortOpen, setEffortOpen] = useState(false);
@@ -381,6 +384,17 @@ function ExerciseDetail({
     (weight > 0 || ghost.weightLbs > 0
       ? e1rm(weight, reps) > e1rm(ghost.weightLbs, ghost.reps)
       : reps > ghost.reps);
+
+  // the progression nudge: the smallest jump that beats the ghost, adopted
+  // with one tap — never auto-logged, never forced on a rough day
+  const target = ghost !== null && records !== null ? suggestProgression(ghost) : null;
+  const onTarget =
+    target !== null && weight === target.weightLbs && reps === target.reps;
+  const e1rmDelta =
+    ghost !== null && (weight > 0 || ghost.weightLbs > 0)
+      ? e1rm(weight, reps) - e1rm(ghost.weightLbs, ghost.reps)
+      : null;
+  const restTarget = exercise.restSeconds ?? REST_TARGET_SECONDS;
 
   return (
     <div className="h-full min-h-0 overflow-y-auto overscroll-contain px-screen pb-tab-clearance">
@@ -478,7 +492,10 @@ function ExerciseDetail({
               Set {setIndex + 1}
             </span>
             <span className="flex items-baseline gap-3">
-              <RestTimer exerciseId={exercise.id} />
+              <RestTimer
+                exerciseId={exercise.id}
+                targetSeconds={restTarget}
+              />
               {ghost && (
                 <span className="type-footnote tabular-nums text-text-tertiary">
                   Ghost:{" "}
@@ -508,6 +525,36 @@ function ExerciseDetail({
               highlight={beatingGhost && weight === ghost?.weightLbs}
             />
           </div>
+
+          {target && (
+            <div className="mt-4 flex h-11 items-center justify-center">
+              {beatingGhost ? (
+                // already past the ghost — say by how much, plainly
+                <span className="type-footnote tabular-nums text-text-secondary">
+                  {e1rmDelta !== null
+                    ? `+${e1rmDelta.toFixed(1)} e1RM vs last session`
+                    : `+${reps - (ghost?.reps ?? 0)} ${reps - (ghost?.reps ?? 0) === 1 ? "rep" : "reps"} vs last session`}
+                </span>
+              ) : onTarget ? null : (
+                <m.button
+                  type="button"
+                  whileTap={{ scale: press.button }}
+                  transition={springs.instant}
+                  onClick={() => {
+                    setWeight(target.weightLbs);
+                    setReps(target.reps);
+                  }}
+                  className="type-footnote tabular-nums flex h-11 items-center rounded-full border border-border-subtle bg-overlay px-4 text-text-secondary"
+                >
+                  Target&nbsp;
+                  {target.weightLbs > 0
+                    ? `${target.weightLbs} × ${target.reps}`
+                    : `${target.reps} reps`}
+                  &nbsp;— beats the ghost
+                </m.button>
+              )}
+            </div>
+          )}
 
           {effortOpen ? (
             <div className="mt-5 space-y-3">
@@ -556,6 +603,38 @@ function ExerciseDetail({
         </Card>
 
         {history !== undefined && <ExerciseTrend history={history} />}
+
+        {/* per-exercise rest target — compounds and isolations don't share a clock */}
+        <div className="mt-6 flex min-h-11 items-center justify-between">
+          <span className="type-footnote text-text-secondary">Rest target</span>
+          <span className="flex items-center gap-2">
+            <StepButton
+              onClick={() =>
+                updateExercise.mutate({
+                  id: exercise.id,
+                  restSeconds: Math.max(restTarget - 30, 30),
+                })
+              }
+              label="Decrease rest target"
+            >
+              <Minus size={18} strokeWidth={2} />
+            </StepButton>
+            <span className="type-headline w-14 text-center tabular-nums">
+              {Math.floor(restTarget / 60)}:{String(restTarget % 60).padStart(2, "0")}
+            </span>
+            <StepButton
+              onClick={() =>
+                updateExercise.mutate({
+                  id: exercise.id,
+                  restSeconds: Math.min(restTarget + 30, 600),
+                })
+              }
+              label="Increase rest target"
+            >
+              <Plus size={18} strokeWidth={2} />
+            </StepButton>
+          </span>
+        </div>
 
         <div className="mt-6">
           <ConfirmSwap

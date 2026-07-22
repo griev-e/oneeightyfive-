@@ -22,7 +22,12 @@ import { useProfile } from "@/hooks/use-profile";
 import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useAppDate } from "@/hooks/use-app-date";
 import { computePace, rollingAverage, sessionVolume } from "@/lib/stats";
-import { computeStreak, streakSeries } from "@/lib/streaks";
+import {
+  computeProteinStreak,
+  computeStreak,
+  streakSeries,
+  weeklySurplus,
+} from "@/lib/streaks";
 import { daysBetween, formatFullDate } from "@/lib/dates";
 import { formatInt, formatPace, formatWeight } from "@/lib/format";
 import { sumMacros } from "@/lib/macros";
@@ -68,6 +73,26 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
         settings.calorieTarget,
       ),
     [summaries.days, summaries.targets, date, calories, settings.calorieTarget],
+  );
+
+  // the second flame — protein floor days, judged like the calorie streak
+  const proteinStreak = useMemo(
+    () =>
+      computeProteinStreak(
+        summaries.days,
+        summaries.targets,
+        date,
+        protein,
+        settings.proteinTargetG,
+      ),
+    [summaries.days, summaries.targets, date, protein, settings.proteinTargetG],
+  );
+
+  // the week as a trend: mean daily surplus over the last 7 closed days
+  const weekTrend = useMemo(
+    () =>
+      weeklySurplus(summaries.days, summaries.targets, date, settings.calorieTarget),
+    [summaries.days, summaries.targets, date, settings.calorieTarget],
   );
 
   const latest = weighIns[weighIns.length - 1];
@@ -222,6 +247,20 @@ export function TodayPanel({ isActive }: { isActive: boolean }) {
         <div className="mt-4">
           <StreakRail series={streakRail} isActive={isActive} />
         </div>
+        {(proteinStreak.count > 0 || weekTrend !== null) && (
+          <div className="mt-4 flex items-center justify-between border-t border-border-subtle pt-3">
+            <span className="type-footnote tabular-nums text-text-secondary">
+              {proteinStreak.count > 0
+                ? `Protein streak ${proteinStreak.count} ${proteinStreak.count === 1 ? "day" : "days"}`
+                : " "}
+            </span>
+            {weekTrend !== null && (
+              <span className="type-footnote tabular-nums text-text-secondary">
+                {`${weekTrend.avgDelta >= 0 ? "+" : "−"}${formatInt(Math.abs(weekTrend.avgDelta))} cal/day this week`}
+              </span>
+            )}
+          </div>
+        )}
       </PressableCard>
 
       {/* cards */}

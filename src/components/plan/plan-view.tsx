@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { m } from "motion/react";
-import { ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { LineChart, type ChartPoint } from "@/components/charts/line-chart";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -14,9 +16,11 @@ import {
 } from "./edit-value-sheet";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import { useExportData } from "@/hooks/use-export";
+import { useImportData } from "@/hooks/use-import";
 import { useProfile, useSavePlan, type Profile } from "@/hooks/use-profile";
 import { useWeighIns } from "@/hooks/use-weight";
 import { usePlanEvents, type PlanEvent } from "@/hooks/use-plan-events";
+import { useDaySummaries } from "@/hooks/use-day-summaries";
 import { useAppDate } from "@/hooks/use-app-date";
 import {
   buildPlan,
@@ -26,8 +30,9 @@ import {
   type PlanInputs,
 } from "@/lib/plan";
 import { computePace } from "@/lib/stats";
+import type { TargetRow } from "@/lib/streaks";
 import { formatInt } from "@/lib/format";
-import { formatShortDate } from "@/lib/dates";
+import { addDays, formatShortDate } from "@/lib/dates";
 import { springs, press } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import {
@@ -71,6 +76,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
   const { data: profile } = useProfile();
   const { data: weighIns = [] } = useWeighIns();
   const { data: events = [] } = usePlanEvents();
+  const { targets } = useDaySummaries();
   const updateSettings = useUpdateSettings();
   const savePlan = useSavePlan();
   const exportData = useExportData(today);
@@ -393,6 +399,8 @@ export function PlanView({ onBack }: { onBack: () => void }) {
           </section>
         )}
 
+        <TargetHistorySection targets={targets} events={events} today={today} />
+
         {/* audit trail — every time the target moved */}
         {events.length > 0 && (
           <section>
@@ -408,7 +416,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
         {/* the insurance policy — everything, as one file */}
         <section>
           <div className="type-label mb-2 text-text-tertiary">Data</div>
-          <Card className="p-0 px-4">
+          <Card className="divide-y divide-border-subtle p-0 px-4">
             <m.button
               type="button"
               onClick={() => exportData.mutate()}
@@ -430,6 +438,7 @@ export function PlanView({ onBack }: { onBack: () => void }) {
                 className="shrink-0 text-text-tertiary"
               />
             </m.button>
+            <ImportDataRow />
           </Card>
         </section>
       </div>
@@ -641,5 +650,142 @@ function OptionSheet<T>({
         ))}
       </div>
     </Sheet>
+  );
+}
+
+/** Stepwise calorie-target line + observed-TDEE dots — recalibration, legible. */
+function TargetHistorySection({
+  targets,
+  events,
+  today,
+}: {
+  targets: TargetRow[];
+  events: PlanEvent[];
+  today: string;
+}) {
+  const stepLine = useMemo(() => {
+    const rows = [...targets].sort((a, b) =>
+      a.effectiveDate < b.effectiveDate ? -1 : 1,
+    );
+    const pts: ChartPoint[] = [];
+    rows.forEach((t, i) => {
+      pts.push({ date: t.effectiveDate, weightLbs: t.calorieTarget });
+      const next = rows[i + 1];
+      const end = next ? addDays(next.effectiveDate, -1) : today;
+      if (end > t.effectiveDate) pts.push({ date: end, weightLbs: t.calorieTarget });
+    });
+    return pts;
+  }, [targets, today]);
+
+  const observed = useMemo(
+    () =>
+      events
+        .filter((e) => e.observedTdee !== null)
+        .map((e) => ({ date: e.date, weightLbs: e.observedTdee! }))
+        .filter((d) => stepLine.length === 0 || d.date >= stepLine[0].date)
+        .sort((a, b) => (a.date < b.date ? -1 : 1)),
+    [events, stepLine],
+  );
+
+  // one target forever is a flat line with nothing to say
+  if (stepLine.length < 3 && observed.length === 0) return null;
+
+  return (
+    <section>
+      <div className="type-label mb-2 text-text-tertiary">Target history</div>
+      <Card className="p-4">
+        <LineChart
+          label="Calorie target history"
+          data={observed.length > 0 ? observed : stepLine}
+          avg={stepLine}
+          height={140}
+        />
+        <p className="type-footnote mt-2 text-text-tertiary">
+          {observed.length > 0
+            ? "Line: daily target · dots: observed TDEE"
+            : "Your calorie target over time"}
+        </p>
+      </Card>
+    </section>
+  );
+}
+
+/** The restore half of the Data card: pick a backup, confirm, replace everything. */
+function ImportDataRow() {
+  const importData = useImportData();
+  const toast = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pending, setPending] = useState<unknown | null>(null);
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      if (file.size > 50 * 1024 * 1024) throw new Error("too large");
+      setPending(JSON.parse(await file.text()));
+    } catch {
+      toast.show("That file isn't a Surplus backup");
+    }
+  };
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={(e) => {
+          void onFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      {pending !== null ? (
+        // destructive confirm — the sanctioned red-swap moment
+        <div className="flex items-center gap-2 py-2">
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={() => setPending(null)}
+          >
+            Cancel
+          </Button>
+          <m.button
+            type="button"
+            whileTap={{ scale: press.button }}
+            transition={springs.instant}
+            onClick={() => {
+              importData.mutate(pending);
+              setPending(null);
+            }}
+            className="type-headline h-13 flex-1 rounded-lg border border-destructive-border bg-destructive-tint text-destructive"
+          >
+            Replace data
+          </m.button>
+        </div>
+      ) : (
+        <m.button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={importData.isPending}
+          whileTap={{ scale: press.row }}
+          transition={springs.instant}
+          className="flex min-h-14 w-full items-center justify-between gap-3 py-2 text-left"
+        >
+          <span>
+            <span className="type-body block text-text-primary">
+              {importData.isPending ? "Restoring…" : "Restore backup"}
+            </span>
+            <span className="type-footnote block text-text-tertiary">
+              Replaces everything with a previous export
+            </span>
+          </span>
+          <Upload
+            size={16}
+            strokeWidth={1.75}
+            className="shrink-0 text-text-tertiary"
+          />
+        </m.button>
+      )}
+    </div>
   );
 }

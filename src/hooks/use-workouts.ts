@@ -10,6 +10,8 @@ export type Exercise = {
   name: string;
   isSeeded: boolean;
   sortOrder: number;
+  /** per-exercise rest target in seconds; null = the app default */
+  restSeconds: number | null;
 };
 
 export type WorkoutSet = {
@@ -29,7 +31,15 @@ export type ExerciseHistory = {
     sets: { weightLbs: number; reps: number; rpe: number | null }[];
   } | null;
   records: ExerciseRecords | null;
-  recent: { date: string; sets: number; topWeight: number; topReps: number }[];
+  recent: {
+    date: string;
+    sets: number;
+    topWeight: number;
+    topReps: number;
+    /** absent in pre-M9 cached responses — treat as unknown, not zero */
+    volumeLbs?: number;
+    totalReps?: number;
+  }[];
 };
 
 export function useExercises() {
@@ -58,6 +68,32 @@ export function useCreateExercise() {
           : "Couldn't add — try again",
       );
     },
+  });
+}
+
+/** Per-exercise tweaks (today: the rest target). Optimistic like every edit. */
+export function useUpdateExercise() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string; restSeconds?: number | null }) =>
+      fetchJson<{ ok: true }>(`/api/exercises/${id}`, {
+        method: "PATCH",
+        ...jsonBody(patch),
+      }),
+    onMutate: async ({ id, ...patch }) => {
+      await qc.cancelQueries({ queryKey: ["exercises"] });
+      const prev = qc.getQueryData<Exercise[]>(["exercises"]);
+      qc.setQueryData<Exercise[]>(["exercises"], (old = []) =>
+        old.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      qc.setQueryData(["exercises"], ctx?.prev);
+      toast.show("Couldn't save — try again");
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["exercises"] }),
   });
 }
 

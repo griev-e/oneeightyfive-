@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeStreak, streakSeries, type TargetRow } from "@/lib/streaks";
+import {
+  computeProteinStreak,
+  computeStreak,
+  streakSeries,
+  weeklySurplus,
+  type TargetRow,
+} from "@/lib/streaks";
 
 const t = (effectiveDate: string, calorieTarget: number): TargetRow => ({
   effectiveDate,
@@ -100,5 +106,93 @@ describe("streakSeries", () => {
     expect(today.calories).toBe(2750);
     expect(today.hit).toBe(true);
     expect(today.logged).toBe(true);
+  });
+});
+
+describe("computeProteinStreak", () => {
+  const days = [
+    { date: "2026-07-15", proteinG: 140 },
+    { date: "2026-07-16", proteinG: 135 },
+    { date: "2026-07-17", proteinG: 150 },
+  ];
+
+  it("counts consecutive protein-floor days against each day's own target", () => {
+    const s = computeProteinStreak(days, [t("2026-07-01", 2700)], TODAY, 0, 135);
+    expect(s.count).toBe(3);
+    expect(s.todayHit).toBe(false);
+    expect(s.todayTarget).toBe(135);
+  });
+
+  it("today adds to the streak once protein crosses the floor", () => {
+    const s = computeProteinStreak(days, [t("2026-07-01", 2700)], TODAY, 136, 135);
+    expect(s.count).toBe(4);
+    expect(s.todayHit).toBe(true);
+  });
+
+  it("a sub-floor day breaks it — 134 g against a 135 g floor", () => {
+    const s = computeProteinStreak(
+      [...days.slice(0, 2), { date: "2026-07-17", proteinG: 134 }],
+      [t("2026-07-01", 2700)],
+      TODAY,
+      0,
+      135,
+    );
+    expect(s.count).toBe(0);
+  });
+
+  it("falls back to current settings when no target history exists", () => {
+    const s = computeProteinStreak(days, [], TODAY, 0, 150);
+    // 140 and 135 are below a 150 floor, 150 hits — streak is just the 17th
+    expect(s.count).toBe(1);
+  });
+});
+
+describe("weeklySurplus", () => {
+  const targets = [t("2026-07-01", 2700)];
+
+  it("averages the daily delta vs each day's target over logged closed days", () => {
+    const days = [
+      { date: "2026-07-15", calories: 2900 }, // +200
+      { date: "2026-07-16", calories: 2700 }, // 0
+      { date: "2026-07-17", calories: 3000 }, // +300
+    ];
+    expect(weeklySurplus(days, targets, TODAY, 2700)).toEqual({
+      avgDelta: 167,
+      loggedDays: 3,
+    });
+  });
+
+  it("needs at least 3 logged days — two is not a trend", () => {
+    const days = [
+      { date: "2026-07-16", calories: 2900 },
+      { date: "2026-07-17", calories: 2800 },
+    ];
+    expect(weeklySurplus(days, targets, TODAY, 2700)).toBeNull();
+  });
+
+  it("skips unlogged days instead of counting them as zero", () => {
+    const days = [
+      { date: "2026-07-11", calories: 2600 }, // −100 (in window: 11th..17th)
+      { date: "2026-07-14", calories: 2800 }, // +100
+      { date: "2026-07-17", calories: 2700 }, // 0
+    ];
+    expect(weeklySurplus(days, targets, TODAY, 2700)).toEqual({
+      avgDelta: 0,
+      loggedDays: 3,
+    });
+  });
+
+  it("ignores today and days older than a week", () => {
+    const days = [
+      { date: "2026-07-10", calories: 9000 }, // outside the 7-day window
+      { date: TODAY, calories: 9000 }, // today never judged
+      { date: "2026-07-15", calories: 2750 },
+      { date: "2026-07-16", calories: 2750 },
+      { date: "2026-07-17", calories: 2750 },
+    ];
+    expect(weeklySurplus(days, targets, TODAY, 2700)).toEqual({
+      avgDelta: 50,
+      loggedDays: 3,
+    });
   });
 });

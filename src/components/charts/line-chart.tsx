@@ -64,8 +64,9 @@ export function LineChart({
     if (data.length === 0 || width === 0) {
       return { xFor: () => 0, yFor: () => 0, linePath: "", guidePath: "" };
     }
-    // the guide may extend past the data (a projection) — it stretches both domains
-    const all = [...data, ...(guide ?? [])];
+    // the guide/avg may extend past the data (a projection, a step line whose
+    // dots are sparser than its path) — they stretch both domains
+    const all = [...data, ...avg, ...(guide ?? [])];
     const first = all.reduce((m, p) => (p.date < m ? p.date : m), all[0].date);
     const last = all.reduce((m, p) => (p.date > m ? p.date : m), all[0].date);
     const span = Math.max(daysBetween(first, last), 1);

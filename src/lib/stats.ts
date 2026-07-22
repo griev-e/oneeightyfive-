@@ -80,6 +80,10 @@ export type SessionSummary = {
   sets: number;
   topWeight: number;
   topReps: number;
+  /** per-session tonnage (Σ weight × reps over the weighted sets) */
+  volumeLbs?: number;
+  /** total reps that session — the bodyweight-lift volume analogue */
+  totalReps?: number;
 };
 
 /**
@@ -94,6 +98,33 @@ export function e1rmSeries(recent: SessionSummary[]): WeighIn[] {
       date: s.date,
       weightLbs: s.topWeight > 0 ? e1rm(s.topWeight, s.topReps) : s.topReps,
     }));
+}
+
+/**
+ * Per-session volume points: tonnage for weighted lifts, total reps for
+ * bodyweight ones. Same ascending shape as e1rmSeries so the two feed the
+ * same chart.
+ */
+export function volumeSeries(recent: SessionSummary[]): WeighIn[] {
+  return [...recent]
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+    .map((s) => ({
+      date: s.date,
+      weightLbs: s.topWeight > 0 ? (s.volumeLbs ?? 0) : (s.totalReps ?? 0),
+    }));
+}
+
+/**
+ * The next-set target that beats the positional ghost — the smallest
+ * standard jump: +5 lb at the same reps for weighted lifts, +1 rep at
+ * bodyweight. A suggestion the stepper can adopt in one tap, never a
+ * value that logs itself.
+ */
+export function suggestProgression(ghost: SetInput): SetInput {
+  if (ghost.weightLbs === 0) {
+    return { weightLbs: 0, reps: Math.min(ghost.reps + 1, 100) };
+  }
+  return { weightLbs: Math.min(ghost.weightLbs + 5, 1500), reps: ghost.reps };
 }
 
 /**

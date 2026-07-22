@@ -56,10 +56,17 @@ export async function GET(req: Request, ctx: Ctx) {
     }
   }
 
-  const byDate = new Map<string, { sets: number; topWeight: number; topReps: number }>();
+  const byDate = new Map<
+    string,
+    { sets: number; topWeight: number; topReps: number; volumeLbs: number; totalReps: number }
+  >();
   for (const s of data) {
-    const d = byDate.get(s.date) ?? { sets: 0, topWeight: 0, topReps: 0 };
+    const d =
+      byDate.get(s.date) ??
+      { sets: 0, topWeight: 0, topReps: 0, volumeLbs: 0, totalReps: 0 };
     d.sets += 1;
+    d.volumeLbs += s.weight_lbs * s.reps;
+    d.totalReps += s.reps;
     if (s.weight_lbs > d.topWeight) {
       d.topWeight = s.weight_lbs;
       d.topReps = s.reps;

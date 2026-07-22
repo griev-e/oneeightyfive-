@@ -8,6 +8,8 @@ import {
   projectionGuide,
   rollingAverage,
   sessionVolume,
+  suggestProgression,
+  volumeSeries,
   weeklyVolume,
   type ExerciseRecords,
   type WeighIn,
@@ -310,5 +312,54 @@ describe("weeklyVolume", () => {
   it("ignores closed days older than the window", () => {
     const out = weeklyVolume([day("2026-06-01", 4000)], [], TODAY, 2);
     expect(out.every((w) => w.volumeLbs === 0)).toBe(true);
+  });
+});
+
+describe("suggestProgression", () => {
+  it("suggests +5 lb at the same reps for a weighted ghost", () => {
+    expect(suggestProgression({ weightLbs: 135, reps: 8 })).toEqual({
+      weightLbs: 140,
+      reps: 8,
+    });
+  });
+
+  it("suggests +1 rep for a bodyweight ghost", () => {
+    expect(suggestProgression({ weightLbs: 0, reps: 12 })).toEqual({
+      weightLbs: 0,
+      reps: 13,
+    });
+  });
+
+  it("clamps at the schema bounds", () => {
+    expect(suggestProgression({ weightLbs: 1498, reps: 5 }).weightLbs).toBe(1500);
+    expect(suggestProgression({ weightLbs: 0, reps: 100 }).reps).toBe(100);
+  });
+});
+
+describe("volumeSeries", () => {
+  it("charts tonnage ascending for weighted sessions", () => {
+    expect(
+      volumeSeries([
+        { date: "2026-07-15", sets: 3, topWeight: 135, topReps: 8, volumeLbs: 3240, totalReps: 24 },
+        { date: "2026-07-12", sets: 3, topWeight: 130, topReps: 8, volumeLbs: 3120, totalReps: 24 },
+      ]),
+    ).toEqual([
+      { date: "2026-07-12", weightLbs: 3120 },
+      { date: "2026-07-15", weightLbs: 3240 },
+    ]);
+  });
+
+  it("uses total reps for bodyweight sessions", () => {
+    expect(
+      volumeSeries([
+        { date: "2026-07-15", sets: 3, topWeight: 0, topReps: 10, volumeLbs: 0, totalReps: 26 },
+      ]),
+    ).toEqual([{ date: "2026-07-15", weightLbs: 26 }]);
+  });
+
+  it("treats missing volume fields (pre-M9 cache) as zero, not NaN", () => {
+    expect(
+      volumeSeries([{ date: "2026-07-15", sets: 3, topWeight: 135, topReps: 8 }]),
+    ).toEqual([{ date: "2026-07-15", weightLbs: 0 }]);
   });
 });
